@@ -145,7 +145,7 @@ end
 -- ============================================================
 --   CONFIG SAVE/LOAD
 -- ============================================================
-local CONFIG_KEY="IK_V2_Config"
+local CONFIG_KEY="LH_V4_Config"
 local function saveConfig()
     pcall(function()
         if not writefile then return end
@@ -240,7 +240,7 @@ local function startSpin()
     local c=player.Character; if not c then return end
     local root=c:FindFirstChild("HumanoidRootPart"); if not root then return end
     if spinBAV then spinBAV:Destroy() end
-    spinBAV=Instance.new("BodyAngularVelocity"); spinBAV.Name="IK_SpinBAV"
+    spinBAV=Instance.new("BodyAngularVelocity"); spinBAV.Name="LH_SpinBAV"
     spinBAV.MaxTorque=Vector3.new(0,math.huge,0); spinBAV.AngularVelocity=Vector3.new(0,SPIN_SPEED,0); spinBAV.Parent=root
 end
 local function stopSpin() if spinBAV then spinBAV:Destroy(); spinBAV=nil end end
@@ -249,11 +249,11 @@ local function stopSpin() if spinBAV then spinBAV:Destroy(); spinBAV=nil end end
 local function createESP(plr)
     if plr==player or not plr.Character then return end
     local c=plr.Character; local root=c:FindFirstChild("HumanoidRootPart"); if not root then return end
-    if c:FindFirstChild("IK_ESP") then return end
-    local box=Instance.new("BoxHandleAdornment"); box.Name="IK_ESP"; box.Adornee=root
+    if c:FindFirstChild("LH_ESP") then return end
+    local box=Instance.new("BoxHandleAdornment"); box.Name="LH_ESP"; box.Adornee=root
     box.Size=Vector3.new(4,6,2); box.Color3=TH.accent; box.Transparency=0.45; box.ZIndex=10; box.AlwaysOnTop=true; box.Parent=c
     local head=c:FindFirstChild("Head")
-    local bb=Instance.new("BillboardGui"); bb.Name="IK_ESP_Name"; bb.Adornee=head or root
+    local bb=Instance.new("BillboardGui"); bb.Name="LH_ESP_Name"; bb.Adornee=head or root
     bb.Size=UDim2.new(0,200,0,45); bb.StudsOffset=Vector3.new(0,3,0); bb.AlwaysOnTop=true; bb.Parent=c
     local lbl=Instance.new("TextLabel"); lbl.Size=UDim2.new(1,0,1,0); lbl.BackgroundTransparency=1
     lbl.Text=plr.DisplayName; lbl.TextColor3=TH.accent; lbl.Font=Enum.Font.GothamBold
@@ -261,7 +261,7 @@ local function createESP(plr)
 end
 local function removeESP(plr)
     if not plr.Character then return end
-    local b=plr.Character:FindFirstChild("IK_ESP"); local n=plr.Character:FindFirstChild("IK_ESP_Name")
+    local b=plr.Character:FindFirstChild("LH_ESP"); local n=plr.Character:FindFirstChild("LH_ESP_Name")
     if b then b:Destroy() end; if n then n:Destroy() end
 end
 local function enableESP()
@@ -550,11 +550,11 @@ player.CharacterAdded:Connect(function(c) task.wait(0.5); setupChar(c) end)
 task.spawn(function()
 
 local ROOT = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-ROOT.Name="IK_V2_UI"; ROOT.ResetOnSpawn=false; ROOT.IgnoreGuiInset=true
+ROOT.Name="LH_V4_UI"; ROOT.ResetOnSpawn=false; ROOT.IgnoreGuiInset=true
 ROOT.DisplayOrder=20; ROOT.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
 
 local PBGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-PBGui.Name="IK_V2_PB"; PBGui.ResetOnSpawn=false; PBGui.IgnoreGuiInset=true; PBGui.DisplayOrder=5
+PBGui.Name="LH_V4_PB"; PBGui.ResetOnSpawn=false; PBGui.IgnoreGuiInset=true; PBGui.DisplayOrder=5
 
 -- ============================================================
 --   UI HELPER FUNCTIONS
@@ -958,9 +958,9 @@ local tbFix=Instance.new("Frame",titleBar); tbFix.Size=UDim2.new(1,0,0,20); tbFi
 
 local accentPip=Instance.new("Frame",titleBar); accentPip.Size=UDim2.new(0,4,0,28); accentPip.Position=UDim2.new(0,16,0.5,-14); accentPip.BackgroundColor3=TH.accent; accentPip.BorderSizePixel=0; accentPip.ZIndex=12; Instance.new("UICorner",accentPip).CornerRadius=UDim.new(1,0)
 
-local titleLbl=Instance.new("TextLabel",titleBar); titleLbl.Size=UDim2.new(0.5,0,1,0); titleLbl.Position=UDim2.new(0,28,0,0); titleLbl.BackgroundTransparency=1; titleLbl.Text="ILLUSION KAWATAN"; titleLbl.Font=Enum.Font.GothamBlack; titleLbl.TextSize=14; titleLbl.TextColor3=TH.text; titleLbl.TextXAlignment=Enum.TextXAlignment.Left; titleLbl.ZIndex=12
+local titleLbl=Instance.new("TextLabel",titleBar); titleLbl.Size=UDim2.new(0.5,0,1,0); titleLbl.Position=UDim2.new(0,28,0,0); titleLbl.BackgroundTransparency=1; titleLbl.Text="Light HUB"; titleLbl.Font=Enum.Font.GothamBlack; titleLbl.TextSize=14; titleLbl.TextColor3=TH.text; titleLbl.TextXAlignment=Enum.TextXAlignment.Left; titleLbl.ZIndex=12
 
-local vTag=Instance.new("TextLabel",titleBar); vTag.Size=UDim2.new(0,28,0,14); vTag.Position=UDim2.new(0,28,0,30); vTag.BackgroundColor3=TH.accent; vTag.Text="V2"; vTag.Font=Enum.Font.GothamBold; vTag.TextSize=8; vTag.TextColor3=Color3.new(0,0,0); vTag.ZIndex=12; Instance.new("UICorner",vTag).CornerRadius=UDim.new(0,4)
+local vTag=Instance.new("TextLabel",titleBar); vTag.Size=UDim2.new(0,28,0,14); vTag.Position=UDim2.new(0,28,0,30); vTag.BackgroundColor3=TH.accent; vTag.Text="V4"; vTag.Font=Enum.Font.GothamBold; vTag.TextSize=8; vTag.TextColor3=Color3.new(0,0,0); vTag.ZIndex=12; Instance.new("UICorner",vTag).CornerRadius=UDim.new(0,4)
 
 -- FPS label
 local fpsLbl=Instance.new("TextLabel",titleBar); fpsLbl.Size=UDim2.new(0,80,1,0); fpsLbl.Position=UDim2.new(1,-170,0,0); fpsLbl.BackgroundTransparency=1; fpsLbl.Text="60 FPS"; fpsLbl.Font=Enum.Font.GothamBold; fpsLbl.TextSize=10; fpsLbl.TextColor3=TH.muted; fpsLbl.TextXAlignment=Enum.TextXAlignment.Right; fpsLbl.ZIndex=12
@@ -1147,7 +1147,7 @@ do
     s("Info")
     do
         local info=Instance.new("Frame",sc); info.Size=UDim2.new(1,-16,0,60); info.BackgroundColor3=TH.panel2; info.BorderSizePixel=0; info.ZIndex=12; Instance.new("UICorner",info).CornerRadius=UDim.new(0,14); Instance.new("UIStroke",info).Color=TH.divider
-        local il=Instance.new("TextLabel",info); il.Size=UDim2.new(1,-16,1,0); il.Position=UDim2.new(0,8,0,0); il.BackgroundTransparency=1; il.Text="Illusion Kawatan V2\nMade By Hesa\nAll features from CZ Hub preserved"; il.Font=Enum.Font.Gotham; il.TextSize=10; il.TextColor3=TH.muted; il.ZIndex=13; il.TextWrapped=true
+        local il=Instance.new("TextLabel",info); il.Size=UDim2.new(1,-16,1,0); il.Position=UDim2.new(0,8,0,0); il.BackgroundTransparency=1; il.Text="LightHubv4 Made by ws91z and shadowakira"; il.Font=Enum.Font.Gotham; il.TextSize=10; il.TextColor3=TH.muted; il.ZIndex=13; il.TextWrapped=true
     end
 end
 
@@ -1174,12 +1174,12 @@ setActiveTab("Move")
 --   Style: premium dark pill, animated border when ON
 -- ============================================================
 local FloatGui=Instance.new("ScreenGui",player:WaitForChild("PlayerGui"))
-FloatGui.Name="IK_V2_Float"; FloatGui.ResetOnSpawn=false; FloatGui.IgnoreGuiInset=true; FloatGui.DisplayOrder=18
+FloatGui.Name="LH_V2_Float"; FloatGui.ResetOnSpawn=false; FloatGui.IgnoreGuiInset=true; FloatGui.DisplayOrder=18
 
 local function makeFloatBtn(id, line1, line2, defX, defY, accent, onToggle, isAction)
     accent=accent or TH.accent
     local btn=Instance.new("TextButton",FloatGui)
-    btn.Name="IKFloat_"..id; btn.Size=UDim2.new(0,100,0,48); btn.Position=UDim2.new(0,defX,0,defY)
+    btn.Name="LHFloat_"..id; btn.Size=UDim2.new(0,100,0,48); btn.Position=UDim2.new(0,defX,0,defY)
     btn.BackgroundColor3=Color3.fromRGB(10,12,18); btn.BackgroundTransparency=0; btn.BorderSizePixel=0; btn.Text=""; btn.ZIndex=22; btn.Active=true
     Instance.new("UICorner",btn).CornerRadius=UDim.new(0,16)
 
@@ -1354,10 +1354,10 @@ if optimizerEnabled then enableOptimizer() end
 if goodAnimEnabled then task.spawn(startGoodAnim) end
 if medusaCounterEnabled then task.spawn(function() task.wait(1); setupMedusaCounter(player.Character) end) end
 
-print("✅ ILLUSION KAWATAN V2 — Made By Hesa — Loaded!")
+print("✅ LIGHT HUB V4 - MADE BY ws91z and shadowakira — Loaded!")
 print("☰ Top-right button = open/close main panel")
-print("🎮 All CZ Hub features preserved 100%")
-print("✨ Animated border buttons — active when ON")
+print("Always Win")
+print(".gg/lighthubv4")
 
 end) -- task.spawn GUI
 end) -- task.spawn main
