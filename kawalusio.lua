@@ -7,7 +7,7 @@ if ANIMATION_MODE == "GUI" and game then
     local player     = Players.LocalPlayer
 
     local sg = Instance.new("ScreenGui")
-    sg.Name = "IK_Intro"; sg.ResetOnSpawn = false
+    sg.Name = "LH_Intro"; sg.ResetOnSpawn = false
     sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     sg.Parent = player:WaitForChild("PlayerGui")
 
@@ -20,9 +20,9 @@ if ANIMATION_MODE == "GUI" and game then
         l.TextStrokeColor3=Color3.fromRGB(0,80,100)
         l.ZIndex=2; l.TextTransparency=1; return l
     end
-    local t1 = makeTL("ILLUSION", 70, -75, Color3.fromRGB(0,230,210), true)
-    local t2 = makeTL("KAWATAN V2", 42, 10,  Color3.fromRGB(80,255,220), true)
-    local t3 = makeTL("Made By Hesa", 22, 62, Color3.fromRGB(160,200,200), false)
+    local t1 = makeTL("LIGHT HUB", 70, -75, Color3.fromRGB(0,230,210), true)
+    local t2 = makeTL("V4", 42, 10,  Color3.fromRGB(80,255,220), true)
+    local t3 = makeTL("Made By ws91z", 22, 62, Color3.fromRGB(160,200,200), false)
 
     task.spawn(function()
         local fi = TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
@@ -60,12 +60,12 @@ local player         = Players.LocalPlayer
 --   COLORS / THEME
 -- ============================================================
 local TH = {
-    bg       = Color3.fromRGB(9, 11, 16),
-    panel    = Color3.fromRGB(13, 16, 23),
-    panel2   = Color3.fromRGB(18, 22, 32),
-    panel3   = Color3.fromRGB(24, 29, 42),
-    accent   = Color3.fromRGB(0, 220, 200),
-    accent2  = Color3.fromRGB(0, 170, 155),
+    bg       = Color3.fromRGB(0, 0, 0),
+    panel    = Color3.fromRGB(32, 32, 32),
+    panel2   = Color3.fromRGB(224, 224, 224),
+    panel3   = Color3.fromRGB(192, 192, 192),
+    accent   = Color3.fromRGB(160, 160, 160),
+    accent2  = Color3.fromRGB(128, 128, 128),
     green    = Color3.fromRGB(30, 220, 100),
     red      = Color3.fromRGB(220, 55, 55),
     off      = Color3.fromRGB(36, 40, 54),
