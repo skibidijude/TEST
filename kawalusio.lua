@@ -73,7 +73,7 @@ local TH = {
     muted    = Color3.fromRGB(90, 100, 120),
     gold     = Color3.fromRGB(255, 195, 55),
     purple   = Color3.fromRGB(145, 75, 255),
-    divider  = Color3.fromRGB(25, 30, 44),
+    divider  = Color3.fromRGB(204, 255, 204),
 }
 
 -- ============================================================
