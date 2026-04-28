@@ -20,9 +20,9 @@ if ANIMATION_MODE == "GUI" and game then
         l.TextStrokeColor3=Color3.fromRGB(0,80,100)
         l.ZIndex=2; l.TextTransparency=1; return l
     end
-    local t1 = makeTL("LIGHT HUB", 70, -75, Color3.fromRGB(0,230,210), true)
-    local t2 = makeTL("V4", 42, 10,  Color3.fromRGB(80,255,220), true)
-    local t3 = makeTL("Made By ws91z", 22, 62, Color3.fromRGB(160,200,200), false)
+    local t1 = makeTL("LIGHT HUB", 70, -75, Color3.fromRGB(255, 204, 255), true)
+    local t2 = makeTL("V4", 42, 10,  Color3.fromRGB(255, 153, 255), true)
+    local t3 = makeTL("Made By ws91z", 22, 62, Color3.fromRGB(229, 204, 255), false)
 
     task.spawn(function()
         local fi = TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
