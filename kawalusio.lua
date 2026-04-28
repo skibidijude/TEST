@@ -60,7 +60,7 @@ local player         = Players.LocalPlayer
 --   COLORS / THEME
 -- ============================================================
 local TH = {
-    bg       = Color3.fromRGB(0, 0, 0),
+    bg       = Color3.fromRGB(16, 16, 16),
     panel    = Color3.fromRGB(32, 32, 32),
     panel2   = Color3.fromRGB(64, 64, 64),
     panel3   = Color3.fromRGB(192, 192, 192),
