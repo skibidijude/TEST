@@ -68,7 +68,7 @@ local TH = {
     accent2  = Color3.fromRGB(128, 128, 128),
     green    = Color3.fromRGB(30, 220, 100),
     red      = Color3.fromRGB(220, 55, 55),
-    off      = Color3.fromRGB(255, 255, 255),
+    off      = Color3.fromRGB(64, 64, 64),
     text     = Color3.fromRGB(76, 0, 153),
     muted    = Color3.fromRGB(255, 204, 299),
     gold     = Color3.fromRGB(255, 195, 55),
@@ -1314,7 +1314,7 @@ local pbDot=Instance.new("Frame",PBC); pbDot.Size=UDim2.new(0,8,0,8); pbDot.Posi
 ProgressLabel=Instance.new("TextLabel",PBC); ProgressLabel.Size=UDim2.new(0.55,0,0.65,0); ProgressLabel.Position=UDim2.new(0,26,0,4); ProgressLabel.BackgroundTransparency=1; ProgressLabel.Text="READY"; ProgressLabel.TextColor3=TH.text; ProgressLabel.Font=Enum.Font.GothamBold; ProgressLabel.TextSize=11; ProgressLabel.TextXAlignment=Enum.TextXAlignment.Left; ProgressLabel.ZIndex=3
 ProgressPctLabel=Instance.new("TextLabel",PBC); ProgressPctLabel.Size=UDim2.new(0,0,0,0); ProgressPctLabel.Visible=false
 
-local pbTitle=Instance.new("TextLabel",PBC); pbTitle.Size=UDim2.new(0.42,0,0.65,0); pbTitle.Position=UDim2.new(0.58,0,0,4); pbTitle.BackgroundTransparency=1; pbTitle.Text="KAWATAN V2"; pbTitle.TextColor3=TH.accent; pbTitle.Font=Enum.Font.GothamBlack; pbTitle.TextSize=11; pbTitle.TextXAlignment=Enum.TextXAlignment.Right; pbTitle.ZIndex=3
+local pbTitle=Instance.new("TextLabel",PBC); pbTitle.Size=UDim2.new(0.42,0,0.65,0); pbTitle.Position=UDim2.new(0.58,0,0,4); pbTitle.BackgroundTransparency=1; pbTitle.Text="LIGHT V4"; pbTitle.TextColor3=TH.accent; pbTitle.Font=Enum.Font.GothamBlack; pbTitle.TextSize=11; pbTitle.TextXAlignment=Enum.TextXAlignment.Right; pbTitle.ZIndex=3
 
 local pbTrack=Instance.new("Frame",PBC); pbTrack.Size=UDim2.new(0.88,0,0,4); pbTrack.Position=UDim2.new(0.06,0,1,-10); pbTrack.BackgroundColor3=TH.panel3; pbTrack.BorderSizePixel=0; pbTrack.ZIndex=2; Instance.new("UICorner",pbTrack).CornerRadius=UDim.new(1,0)
 ProgressBarFill=Instance.new("Frame",pbTrack); ProgressBarFill.Size=UDim2.new(0,0,1,0); ProgressBarFill.BackgroundColor3=TH.green; ProgressBarFill.BorderSizePixel=0; ProgressBarFill.ZIndex=3; Instance.new("UICorner",ProgressBarFill).CornerRadius=UDim.new(1,0)
