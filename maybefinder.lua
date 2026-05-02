@@ -1,2963 +1,2237 @@
-print ("leaked by @bu8f on discord")
+-- leaked by https://discord.gg/WfTDsBPR9n join for more sources
 
-    -- Services with safety checks
-    local TeleportService = game:GetService("TeleportService")
-    local HttpService = game:GetService("HttpService")
-    local Players = game:GetService("Players")
-    local LocalPlayer = Players.LocalPlayer
-    local RunService = game:GetService("RunService")
-    local TweenService = game:GetService("TweenService")
-    local guiService = game:GetService("GuiService")
-    local UserInputService = game:GetService("UserInputService")
+--[[
+    ██████╗ ██╗  ██╗██╗  ██╗    ██╗  ██╗██╗   ██╗██████╗     ██╗   ██╗ ██╗ █████╗
+    ██╔══██╗██║ ██╔╝╚██╗██╔╝    ██║  ██║██║   ██║██╔══██╗    ██║   ██║███║██╔══██╗
+    ██████╔╝█████╔╝  ╚███╔╝     ███████║██║   ██║██████╔╝    ██║   ██║╚██║╚██████║
+    ██╔══██╗██╔═██╗  ██╔██╗     ██╔══██║██║   ██║██╔══██╗    ╚██╗ ██╔╝ ██║ ╚═══██║
+    ██████╔╝██║  ██╗██╔╝ ██╗    ██║  ██║╚██████╔╝██████╔╝     ╚████╔╝  ██║ █████╔╝
+    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝    ╚═╝  ╚═╝ ╚═════╝ ╚═════╝       ╚═══╝   ╚═╝ ╚════╝
 
-    -- Wait for LocalPlayer to be valid
-    if not LocalPlayer then
-        return
-    end
+    Author  : BK
+    Version : 1.9
+    Discord : discord.gg/bkshub
+    Loader  : luarmor (a7b5616e0dba9debf9d1d30cc2ceee9f)
 
-    -- Variables
-    local PlaceID = 109983668079237
-    local autoJoinerEnabled = false
-    local websocketConnection = nil
-    local isConnecting = false
-    -- Cooldowns removed for instant joining
-    local isScriptRunning = true
-    local connections = {}
-    local uiConnections = {} -- Separate array for UI connections that should never be disconnected
+    Features:
+      · Animal Scanner   — detects & lists all brainrots on every plot
+      · Steal System     — target selection, teleport, progress tracking
+      · Brainrot Viewer  — 3-D viewport with mutation colouring
+      · Mini Panel       — compact floating HUD for quick actions
+      · Unlock Base      — 3-button keypad overlay
+      · Animated UI      — breathing border, star-field, cycling FPS text
 
+    NOTE: All HTTP calls are routed through the luarmor auth relay.
+--]]
 
-    -- Tween configurations for smooth animations
-    local TweenService = game:GetService("TweenService")
-    local buttonTweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
-    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
+-- ─────────────────────────────────────────────────────────
+--  SERVICES
+-- ─────────────────────────────────────────────────────────
+local Players             = game:GetService("Players")
+local RunService          = game:GetService("RunService")
+local UserInputService    = game:GetService("UserInputService")
+local TweenService        = game:GetService("TweenService")
+local HttpService         = game:GetService("HttpService")
+local CollectionService   = game:GetService("CollectionService")
+local TeleportService     = game:GetService("TeleportService")
+local LocalizationService = game:GetService("LocalizationService")
+local ReplicatedStorage   = game:GetService("ReplicatedStorage")
 
-    -- Mobile detection and UI scaling
-    local UserInputService = game:GetService("UserInputService")
-    local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-    
-    local joinStartTime = 0
-    local totalJoins = 0
-    local totalJoinTime = 0
-    local isTeleporting = false -- Prevent multiple simultaneous teleports
-    local crashCount = 0
-    local lastCrashTime = 0
-    local teleportAttempts = 0
-    local hasJoinedNewServer = false
-    local serverJoinTime = 0
-    local lastJobId = game.JobId or ""
+local LocalPlayer  = Players.LocalPlayer
+local PlayerGui    = LocalPlayer:WaitForChild("PlayerGui")
+local Camera       = workspace.CurrentCamera
 
-    -- Configuration
-    local WEBSOCKET_URL = ""
-    local WEBHOOK_URL = ""
-    
+-- ─────────────────────────────────────────────────────────
+--  AUTH  (luarmor relay — keeps the loader alive)
+-- ─────────────────────────────────────────────────────────
+local LOADER_KEY = "a7b5616e0dba9debf9d1d30cc2ceee9f"
+local FINGERPRINT = "c02a46a51aa7a133aef02a32f7be4fee58a25a7c8e3735094eb9ec34633212d3"
 
-    -- Forward declarations
-    local hideLoadingUI
-    local addLogEntry
-    
-
-    -- Brainrot Scrambler functionality
-    local processedBrainrots = {}
-    
-    -- Function to generate random gibberish text
-    local function generateGibberish(length)
-        local chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-        local result = ""
-        for i = 1, length do
-            local rand = math.random(1, #chars)
-            result = result .. chars:sub(rand, rand)
-        end
-        return result
-    end
-    
-    -- Function to process a single podium
-    local function processPodium(podium)
-        local overhead
-        for _, child in ipairs(podium:GetDescendants()) do
-            if child.Name == "AnimalOverhead" then 
-                overhead = child 
-                break 
-            end
-        end
-        
-        if not overhead then return end
-
-        local displayName = overhead:FindFirstChild("DisplayName")
-        local generation = overhead:FindFirstChild("Generation")
-        
-        if not (displayName and generation) then return end
-
-        -- Check if we already processed this brainrot
-        local brainrotId = tostring(podium)
-        if processedBrainrots[brainrotId] then
-            return
-        end
-
-        -- Change the object names to gibberish
-        pcall(function()
-            displayName.Name = generateGibberish(12)
-            generation.Name = generateGibberish(10)
-        end)
-        
-        -- Mark this brainrot as processed
-        processedBrainrots[brainrotId] = true
-    end
-    
-    -- Function to scan all plots and process brainrots
-    local function scanAndScramble()
-        local plotsFolder = Workspace:FindFirstChild("Plots")
-        if not plotsFolder then 
-            return 
-        end
-        
-        for _, playerBase in ipairs(plotsFolder:GetChildren()) do
-            local podiumsFolder = playerBase:FindFirstChild("AnimalPodiums")
-            if podiumsFolder then
-                for _, podium in ipairs(podiumsFolder:GetChildren()) do
-                    pcall(function() 
-                        processPodium(podium)
-                    end)
-                end
-            end
-        end
-    end
-    
-    -- Function to handle new player joining
-    local function onPlayerAdded(player)
-        -- Wait a bit for the player's base to load
-        task.wait(2)
-        
-        -- Check if player has a base
-        local plotsFolder = Workspace:FindFirstChild("Plots")
-        if not plotsFolder then return end
-        
-        local playerBase = plotsFolder:FindFirstChild(player.Name .. "'s Base")
-        if not playerBase then return end
-        
-        local podiumsFolder = playerBase:FindFirstChild("AnimalPodiums")
-        if not podiumsFolder then return end
-        
-        print("🧠 Brainrot Scrambler: New player joined - " .. player.Name)
-        
-        -- Process any new brainrots
-        local processedCount = 0
-        for _, podium in ipairs(podiumsFolder:GetChildren()) do
-            pcall(function() 
-                local wasProcessed = processedBrainrots[tostring(podium)]
-                processPodium(podium)
-                if not wasProcessed and processedBrainrots[tostring(podium)] then
-                    processedCount = processedCount + 1
-                end
-            end)
-        end
-        
-        if processedCount > 0 then
-            print("🧠 Brainrot Scrambler: Spoofed " .. processedCount .. " brainrots from " .. player.Name)
-        end
-    end
-    
-    -- Start brainrot scrambler
-    local function startBrainrotScrambler()
-        print("🧠 Brainrot Scrambler: Starting automatic brainrot spoofing...")
-        
-        -- Initial scan
-        scanAndScramble()
-        print("🧠 Brainrot Scrambler: Initial scan complete")
-        
-        -- Connect to player joining event
-        Players.PlayerAdded:Connect(onPlayerAdded)
-        print("🧠 Brainrot Scrambler: Monitoring for new players")
-        
-        -- Periodic scanning every 10 seconds
-        task.spawn(function()
-            while isScriptRunning do
-                task.wait(10)
-                if isScriptRunning then
-                    scanAndScramble()
-                end
-            end
-        end)
-    end
-
-    -- Anti-Lag functionality
-    local function removeAvatarItems(player)
-        local character = player.Character
-        if not character then return end
-        
-        local humanoid = character:FindFirstChild("Humanoid")
-        if not humanoid then return end
-        
-        -- Remove all accessories (hats, hair, etc.)
-        for _, accessory in pairs(character:GetChildren()) do
-            if accessory:IsA("Accessory") then
-                accessory:Destroy()
-            end
-        end
-        
-        -- Remove clothing items
-        local bodyColors = humanoid:FindFirstChild("Body Colors")
-        if bodyColors then
-            bodyColors:Destroy()
-        end
-        
-        -- Remove face
-        local head = character:FindFirstChild("Head")
-        if head then
-            local face = head:FindFirstChild("face")
-            if face then
-                face:Destroy()
-            end
-        end
-    end
-
-    -- Function to remove avatar items from all players
-    local function removeAllAvatarItems()
-        local players = Players:GetPlayers()
-        local removedCount = 0
-        
-        for _, player in pairs(players) do
-            if player ~= LocalPlayer then -- Don't remove from local player
-                removeAvatarItems(player)
-                removedCount = removedCount + 1
-            end
-        end
-        
-    end
-
-    -- Run anti-lag automatically when script starts
-    removeAllAvatarItems()
-
-    -- Helper functions for generation formatting
-local function parseGeneration(generationStr)
-    if not generationStr or generationStr == "" then
-        return 0
-    end
-
-    -- Clean input: remove $, /s, commas, spaces
-    local str = tostring(generationStr):gsub("[$,/s ]", ""):lower()
-    
-    -- Match number (including decimals) and optional suffix
-    local numPart, suffix = str:match("^(%d*%.?%d+)([kmb]?)")
-    
-    if not numPart then
-        return 0
-    end
-    
-    local num = tonumber(numPart) or 0
-    if suffix == "k" then
-        num = num * 1000
-    elseif suffix == "m" then
-        num = num * 1000000
-    elseif suffix == "b" then
-        num = num * 1000000000
-    end
-    
-    return num
+local function Auth_Ping()
+    pcall(function()
+        request({
+            Url     = "https://eu2-roblox-auth.luarmor.net/status",
+            Method  = "GET",
+            Headers = {
+                ["Delta-Fingerprint"]    = FINGERPRINT,
+                ["Delta-User-Identifier"] = FINGERPRINT,
+                ["User-Agent"]           = "Delta iOS/2.0",
+            },
+        })
+    end)
 end
 
-    local function formatGenerationNumber(input)
-        local num = parseGeneration(tostring(input))
-        if num >= 1000000000 then
-            return string.format("%.1fB", num / 1000000000)
-        elseif num >= 1000000 then
-            return string.format("%.1fM", num / 1000000)
-        elseif num >= 1000 then
-            return string.format("%.1fK", num / 1000)
-        else
-            return tostring(num)
-        end
+Auth_Ping()
+
+-- ─────────────────────────────────────────────────────────
+--  THEME  — single source of truth for every colour
+-- ─────────────────────────────────────────────────────────
+local T = {
+    -- backgrounds
+    BG_Deep    = Color3.fromRGB(8,   8,  14),
+    BG_Mid     = Color3.fromRGB(28,  21, 44),
+    BG_Panel   = Color3.fromRGB(16,  14, 24),
+    BG_Entry   = Color3.fromRGB(12,   8, 20),
+    BG_Header  = Color3.fromRGB(18,  14, 30),
+
+    -- accents
+    Cyan       = Color3.fromRGB(120, 240, 255),
+    Purple     = Color3.fromRGB(140,  80, 220),
+    Pink       = Color3.fromRGB(255, 140, 255),
+    Gold       = Color3.fromRGB(255, 235, 120),
+    Green      = Color3.fromRGB(120, 255, 200),
+    Blue       = Color3.fromRGB(140, 200, 255),
+
+    -- rarity colours
+    R = {
+        Common   = Color3.fromRGB(0,   171, 40),
+        Rare     = Color3.fromRGB(0,   131, 171),
+        Epic     = Color3.fromRGB(134,   0, 171),
+        Diamond  = Color3.fromRGB(37,  196, 254),
+        Mythic   = Color3.fromRGB(255,   0,   0),
+        Gold     = Color3.fromRGB(255, 222, 89),
+    },
+
+    -- text
+    Text       = Color3.fromRGB(220, 225, 240),
+    TextDim    = Color3.fromRGB(150, 150, 190),
+    TextAccent = Color3.fromRGB(120, 240, 255),
+
+    -- strokes
+    Border     = Color3.fromRGB(140,  80, 220),
+    BorderCyan = Color3.fromRGB(120, 240, 255),
+}
+
+-- ─────────────────────────────────────────────────────────
+--  UTILITY HELPERS
+-- ─────────────────────────────────────────────────────────
+
+--- Instantiate any Roblox GUI object with property table + optional parent.
+local function New(class, props, parent)
+    local obj = Instance.new(class)
+    for k, v in pairs(props or {}) do
+        obj[k] = v
     end
+    if parent then obj.Parent = parent end
+    return obj
+end
 
-    -- Loading UI
-    local LoadingUI = nil
-    local LoadingUIElements = {}
+--- Rounded corners shorthand.
+local function Round(parent, radius)
+    New("UICorner", { CornerRadius = UDim.new(0, radius or 8) }, parent)
+end
 
-    -- Function to create loading UI
-    local function createLoadingUI()
-        local G2L = {}
-        
-        -- StarterGui.LoadingUI
-        G2L["1"] = Instance.new("ScreenGui", game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui"))
-        G2L["1"]["IgnoreGuiInset"] = true
-        G2L["1"]["ScreenInsets"] = Enum.ScreenInsets.DeviceSafeInsets
-        G2L["1"]["Name"] = "LoadingUI"
-        G2L["1"]["ZIndexBehavior"] = Enum.ZIndexBehavior.Sibling
+--- Single-pixel gradient stroke helper.
+local function Stroke(parent, color, thickness, transparency)
+    return New("UIStroke", {
+        Color        = color        or T.Border,
+        Thickness    = thickness    or 1.2,
+        Transparency = transparency or 0.35,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+    }, parent)
+end
 
-        -- StarterGui.LoadingUI.Frame
-        G2L["3"] = Instance.new("Frame", G2L["1"])
-        G2L["3"]["BorderSizePixel"] = 0
-        G2L["3"]["BackgroundColor3"] = Color3.fromRGB(0, 0, 0)
-        G2L["3"]["AnchorPoint"] = Vector2.new(0.5, 0.5)
-        G2L["3"]["Size"] = UDim2.new(1.455, 0, 1.388, 0)
-        G2L["3"]["Position"] = UDim2.new(0.2725, 0, 0.306, 0)
-        G2L["3"]["BorderColor3"] = Color3.fromRGB(0, 0, 0)
-        G2L["3"]["Draggable"] = true
+--- Tween a property on any instance.
+local function Tween(inst, info, props)
+    local t = TweenService:Create(inst, info, props)
+    t:Play()
+    return t
+end
 
-        -- StarterGui.LoadingUI.Frame.StatusContainer
-        G2L["4"] = Instance.new("Frame", G2L["3"])
-        G2L["4"]["BackgroundColor3"] = Color3.fromRGB(48, 48, 49)
-        G2L["4"]["AnchorPoint"] = Vector2.new(0.5, 0.5)
-        G2L["4"]["Size"] = UDim2.new(0.28245, 0, 0.02301, 0)
-        G2L["4"]["Position"] = UDim2.new(0.65608, 0, 0.76207, 0)
-        G2L["4"]["Name"] = "StatusContainer"
+--- Format a large number as "$12K/s" style.
+local function FmtCoins(n)
+    if n >= 1e6 then return ("$%.1fM/s"):format(n / 1e6)
+    elseif n >= 1e3 then return ("$%.0fK/s"):format(n / 1e3)
+    else return ("$%d/s"):format(n) end
+end
 
-        -- StarterGui.LoadingUI.Frame.StatusContainer.UICorner
-        G2L["5"] = Instance.new("UICorner", G2L["4"])
-        G2L["5"]["CornerRadius"] = UDim.new(1, 0)
+-- ─────────────────────────────────────────────────────────
+--  STATE
+-- ─────────────────────────────────────────────────────────
+local State = {
+    HubVisible      = true,
+    MiniVisible     = true,
+    StealMode       = "Idle",          -- "Idle" | "Targeting" | "Stealing"
+    StealTarget     = nil,
+    StealProgress   = 0,
+    Animals         = {},              -- { name, rarity, coins, plot, model }
+    Targets         = {},              -- players eligible for steal
+    FPS             = 0,
+    Ping            = 0,
+    ScannerReady    = false,
 
-        -- StarterGui.LoadingUI.Frame.StatusBar
-        G2L["6"] = Instance.new("Frame", G2L["3"])
-        G2L["6"]["BackgroundColor3"] = Color3.fromRGB(250, 249, 255)
-        G2L["6"]["AnchorPoint"] = Vector2.new(0.5, 0.5)
-        G2L["6"]["Size"] = UDim2.new(0.01163, 0, 0.02301, 0)
-        G2L["6"]["Position"] = UDim2.new(0.52012, 0, 0.76207, 0)
-        G2L["6"]["Name"] = "StatusBar"
+    -- toggles (mini panel)
+    Toggle = {
+        StealHighestGen   = false,
+        StealNearest      = false,
+        StealBestValue    = false,
+        StealWalking      = false,
+        InvisibleSteal    = false,
+        AutoKickAfter     = false,
+        AutoUnlockDoor    = false,
+        DestroyTurret     = false,
+    },
 
-        -- StarterGui.LoadingUI.Frame.StatusBar.UICorner
-        G2L["7"] = Instance.new("UICorner", G2L["6"])
-        G2L["7"]["CornerRadius"] = UDim.new(1, 0)
+    -- colour-cycle phase (0–360)
+    CycleAngle = 0,
+}
 
-        -- StarterGui.LoadingUI.Frame.StatusBar.UIGradient
-        G2L["8"] = Instance.new("UIGradient", G2L["6"])
-        G2L["8"]["Rotation"] = 90
-        G2L["8"]["Color"] = ColorSequence.new{ColorSequenceKeypoint.new(0.000, Color3.fromRGB(116, 246, 108)),ColorSequenceKeypoint.new(1.000, Color3.fromRGB(116, 246, 108))}
+-- rarity → display colour lookup
+local RARITY_COLOR = {
+    Common  = T.R.Common,
+    Rare    = T.R.Rare,
+    Epic    = T.R.Epic,
+    Diamond = T.R.Diamond,
+    Mythic  = T.R.Mythic,
+    Gold    = T.R.Gold,
+}
 
-        -- StarterGui.LoadingUI.Frame.TextLabel
-        G2L["9"] = Instance.new("TextLabel", G2L["3"])
-        G2L["9"]["TextWrapped"] = true
-        G2L["9"]["TextTransparency"] = 0.36
-        G2L["9"]["TextScaled"] = true
-        G2L["9"]["FontFace"] = Font.new("rbxasset://fonts/families/HighwayGothic.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-        G2L["9"]["TextColor3"] = Color3.fromRGB(255, 255, 255)
-        G2L["9"]["BackgroundTransparency"] = 1
-        G2L["9"]["AnchorPoint"] = Vector2.new(0.5, 0.5)
-        G2L["9"]["Size"] = UDim2.new(0.19605, 0, 0.07749, 0)
-        G2L["9"]["Text"] = "Puzzle Auto Joiner"
-        G2L["9"]["Position"] = UDim2.new(0.65497, 0, 0.59194, 0)
+-- ─────────────────────────────────────────────────────────
+--  NOTIFICATION SYSTEM  (BK_Notif)
+-- ─────────────────────────────────────────────────────────
+local NotifGui = New("ScreenGui", {
+    Name            = "BK_Notif",
+    ZIndexBehavior  = Enum.ZIndexBehavior.Sibling,
+    IgnoreGuiInset  = true,
+    ResetOnSpawn    = false,
+}, PlayerGui)
 
-        -- StarterGui.LoadingUI.Frame.TextLabel
-        G2L["a"] = Instance.new("TextLabel", G2L["3"])
-        G2L["a"]["TextWrapped"] = true
-        G2L["a"]["TextTransparency"] = 0.56
-        G2L["a"]["TextScaled"] = true
-        G2L["a"]["FontFace"] = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
-        G2L["a"]["TextColor3"] = Color3.fromRGB(255, 255, 255)
-        G2L["a"]["BackgroundTransparency"] = 1
-        G2L["a"]["AnchorPoint"] = Vector2.new(0.5, 0.5)
-        G2L["a"]["Size"] = UDim2.new(0.27414, 0, 0.11988, 0)
-        G2L["a"]["Text"] = "discord.gg/brainrotfinder"
-        G2L["a"]["Position"] = UDim2.new(0.6547, 0, 0.65067, 0)
+local _notifQueue  = {}
+local _notifSlotY  = 80          -- first notif Y offset
+local _notifHeight = 64
+local _notifGap    = 8
 
-        -- StarterGui.LoadingUI.Frame.TeleportingStatus
-        G2L["b"] = Instance.new("TextLabel", G2L["3"])
-        G2L["b"]["TextWrapped"] = true
-        G2L["b"]["TextTransparency"] = 0.56
-        G2L["b"]["TextScaled"] = true
-        G2L["b"]["FontFace"] = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-        G2L["b"]["TextColor3"] = Color3.fromRGB(255, 255, 255)
-        G2L["b"]["BackgroundTransparency"] = 1
-        G2L["b"]["AnchorPoint"] = Vector2.new(0.5, 0.5)
-        G2L["b"]["Size"] = UDim2.new(0.04375, 0, 0.01453, 0)
-        G2L["b"]["Text"] = "Teleporting"
-        G2L["b"]["Name"] = "TeleportingStatus"
-        G2L["b"]["Position"] = UDim2.new(0.65525, 0, 0.72514, 0)
+local function ShowNotif(icon, message, kind)
+    -- kind: "success" | "error" | "info"
+    kind = kind or "success"
 
-        -- StarterGui.LoadingUI.Frame.BrainrotDetails
-        G2L["c"] = Instance.new("TextLabel", G2L["3"])
-        G2L["c"]["TextWrapped"] = true
-        G2L["c"]["TextTransparency"] = 0.56
-        G2L["c"]["TextScaled"] = true
-        G2L["c"]["FontFace"] = Font.new("rbxasset://fonts/families/Inconsolata.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-        G2L["c"]["TextColor3"] = Color3.fromRGB(255, 255, 255)
-        G2L["c"]["BackgroundTransparency"] = 1
-        G2L["c"]["AnchorPoint"] = Vector2.new(0.5, 0.5)
-        G2L["c"]["Size"] = UDim2.new(0.10689, 0, 0.02785, 0)
-        G2L["c"]["Text"] = "[Noobini Pizzanini (3M)]"
-        G2L["c"]["Name"] = "BrainrotDetails"
-        G2L["c"]["Position"] = UDim2.new(0.65636, 0, 0.79839, 0)
+    local accentColor = kind == "error"   and Color3.fromRGB(255, 80,  80)
+                     or kind == "info"    and T.Cyan
+                     or                      T.Green
 
-        -- StarterGui.LoadingUI.StrokeFrame
-        G2L["d"] = Instance.new("Frame", G2L["1"])
-        G2L["d"]["BorderSizePixel"] = 0
-        G2L["d"]["BackgroundColor3"] = Color3.fromRGB(157, 157, 157)
-        G2L["d"]["AnchorPoint"] = Vector2.new(0.5, 0.5)
-        G2L["d"]["Size"] = UDim2.new(0.93929, 0, 0.91237, 0)
-        G2L["d"]["Position"] = UDim2.new(0.49732, 0, 0.49844, 0)
-        G2L["d"]["BorderColor3"] = Color3.fromRGB(0, 0, 0)
-        G2L["d"]["Name"] = "StrokeFrame"
-        G2L["d"]["BackgroundTransparency"] = 1
+    local slotY = _notifSlotY + (#_notifQueue * (_notifHeight + _notifGap))
 
-        -- StarterGui.LoadingUI.StrokeFrame.UIStroke
-        G2L["e"] = Instance.new("UIStroke", G2L["d"])
-        G2L["e"]["Color"] = Color3.fromRGB(255, 255, 255)
+    -- root frame (slides in from left)
+    local frame = New("Frame", {
+        Size                  = UDim2.new(0, 280, 0, 56),
+        Position              = UDim2.new(0, -380, 0, slotY),
+        BackgroundColor3      = T.BG_Panel,
+        BackgroundTransparency = 0.06,
+        BorderSizePixel       = 0,
+        ClipsDescendants      = true,
+    }, NotifGui)
+    Round(frame, 10)
 
-        -- StarterGui.LoadingUI.UIAspectRatioConstraint
-        G2L["f"] = Instance.new("UIAspectRatioConstraint", G2L["1"])
-        G2L["f"]["AspectRatio"] = 2.08571
+    -- border stroke + gradient
+    local brd = Stroke(frame, accentColor, 1.2, 0)
+    New("UIGradient", {
+        Name     = "BorderGrad",
+        Rotation = 90,
+        Color    = ColorSequence.new({
+            ColorSequenceKeypoint.new(0,   accentColor),
+            ColorSequenceKeypoint.new(1,   T.Cyan),
+        }),
+    }, brd)
 
-        return G2L
-    end
+    -- left glow
+    local glow = New("Frame", {
+        Name             = "Glow",
+        Size             = UDim2.new(0, 80, 1, 0),
+        BackgroundColor3 = accentColor,
+        BorderSizePixel  = 0,
+    }, frame)
+    New("UIGradient", {
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.65),
+            NumberSequenceKeypoint.new(1, 1),
+        }),
+    }, glow)
 
-    -- Function to show loading UI
-    local function showLoadingUI(brainrotName, generation)
-        if LoadingUI then
-            LoadingUI:Destroy()
-        end
-        
-        LoadingUIElements = createLoadingUI()
-        LoadingUI = LoadingUIElements["1"]
-        
-        -- Update brainrot details with generation
-        LoadingUIElements["c"].Text = "[" .. brainrotName .. " (" .. generation .. ")]"
-        
-        -- Reset status
-        LoadingUIElements["b"].Text = "Teleporting"
-        
-        -- Reset loading bar
-        LoadingUIElements["6"].Size = UDim2.new(0.01163, 0, 0.02301, 0)
-        LoadingUIElements["6"].Position = UDim2.new(0.52012, 0, 0.76207, 0)
-        
-        -- Animate loading bar - stretch to fill entire status container
-        local statusContainerSize = LoadingUIElements["4"].Size.X.Scale
-        local statusContainerPosition = LoadingUIElements["4"].Position.X.Scale
-        
-        local tweenInfo = TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
-        local tween = TweenService:Create(LoadingUIElements["6"], tweenInfo, {
-            Size = UDim2.new(statusContainerSize, 0, 0.02301, 0),
-            Position = UDim2.new(statusContainerPosition, 0, 0.76207, 0)
-        })
-        tween:Play()
-        
-        -- Animate teleporting status dots
-        local dotCount = 0
-        local maxDots = 3
-        local dotConnection
-        local lastDotUpdate = 0
-        
-        local function updateDots()
-            local currentTime = tick()
-            if currentTime - lastDotUpdate >= 0.3 then -- Update every 0.3 seconds
-                dotCount = dotCount + 1
-                if dotCount > maxDots then
-                    dotCount = 1
-                end
-                
-                local dots = string.rep(".", dotCount)
-                LoadingUIElements["b"].Text = "Teleporting" .. dots
-                lastDotUpdate = currentTime
+    -- icon background
+    local iconBg = New("Frame", {
+        Name             = "IconBg",
+        Position         = UDim2.new(0, 12, 0.5, -16),
+        Size             = UDim2.new(0, 32, 0, 32),
+        BackgroundColor3 = accentColor,
+        BackgroundTransparency = 0.7,
+        BorderSizePixel  = 0,
+    }, frame)
+    Round(iconBg, 6)
+
+    New("TextLabel", {
+        Name              = "Icon",
+        Size              = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text              = icon,
+        TextColor3        = accentColor,
+        Font              = Enum.Font.GothamBold,
+        TextSize          = 16,
+        TextWrapped       = true,
+    }, iconBg)
+
+    -- message label
+    New("TextLabel", {
+        Name                  = "Message",
+        Position              = UDim2.new(0, 52, 0, 6),
+        Size                  = UDim2.new(1, -60, 1, -12),
+        BackgroundTransparency = 1,
+        Text                  = message,
+        TextColor3            = T.Text,
+        TextStrokeColor3      = T.Purple,
+        TextStrokeTransparency = 0.65,
+        Font                  = Enum.Font.GothamMedium,
+        TextSize              = 13,
+        TextXAlignment        = Enum.TextXAlignment.Left,
+        TextYAlignment        = Enum.TextYAlignment.Center,
+        TextWrapped           = true,
+    }, frame)
+
+    -- progress bar at bottom
+    local prog = New("Frame", {
+        Name             = "Progress",
+        Position         = UDim2.new(0, 0, 1, -2),
+        Size             = UDim2.new(1, 0, 0, 2),
+        BackgroundColor3 = accentColor,
+        BorderSizePixel  = 0,
+    }, frame)
+    New("UIGradient", {
+        Name = "ProgressGrad",
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0,   accentColor),
+            ColorSequenceKeypoint.new(0.5, T.Cyan),
+            ColorSequenceKeypoint.new(1,   accentColor),
+        }),
+    }, prog)
+
+    table.insert(_notifQueue, frame)
+
+    -- slide in
+    local tweenIn = TweenService:Create(frame,
+        TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+        { Position = UDim2.new(0, 16, 0, slotY) }
+    )
+    tweenIn:Play()
+
+    -- shrink progress bar then slide out after 3.5 s
+    task.delay(0.4, function()
+        TweenService:Create(prog,
+            TweenInfo.new(3.1, Enum.EasingStyle.Linear),
+            { Size = UDim2.new(0, 0, 0, 2) }
+        ):Play()
+    end)
+
+    task.delay(3.8, function()
+        TweenService:Create(frame,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In),
+            { Position = UDim2.new(0, -380, 0, slotY) }
+        ):Play()
+        task.delay(0.35, function()
+            frame:Destroy()
+            table.remove(_notifQueue, table.find(_notifQueue, frame))
+        end)
+    end)
+end
+
+-- ─────────────────────────────────────────────────────────
+--  STEAL PROGRESS BAR  (BK_Steal)
+-- ─────────────────────────────────────────────────────────
+local StealGui = New("ScreenGui", {
+    Name           = "BK_Steal",
+    ZIndexBehavior = Enum.ZIndexBehavior.Global,
+    ResetOnSpawn   = false,
+}, PlayerGui)
+
+-- Scale for viewport
+local stealScale = New("UIScale", {}, nil)
+
+local stealBar = New("Frame", {
+    Name                  = "StealProgressBar",
+    Active                = true,
+    Position              = UDim2.new(0.7, 0, 0.25, 0),
+    Size                  = UDim2.new(0, 300, 0, 386),
+    BackgroundColor3      = Color3.fromRGB(28, 20, 43),
+    BackgroundTransparency = 0.08,
+    BorderSizePixel       = 0,
+}, StealGui)
+Round(stealBar, 14)
+Stroke(stealBar, T.Purple, 1.5, 0.35)
+stealScale.Parent = stealBar
+
+-- ── Header row ──────────────────────────────────────────
+local stealHeader = New("Frame", {
+    Position         = UDim2.new(0, 0, 0, 2),
+    Size             = UDim2.new(1, 0, 0, 36),
+    BackgroundColor3 = Color3.fromRGB(18, 15, 30),
+    BackgroundTransparency = 0.15,
+    BorderSizePixel  = 0,
+}, stealBar)
+
+New("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0,   T.Cyan),
+        ColorSequenceKeypoint.new(0.5, T.Purple),
+        ColorSequenceKeypoint.new(1,   T.Cyan),
+    }),
+    Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.8),
+        NumberSequenceKeypoint.new(0.5, 0.6),
+        NumberSequenceKeypoint.new(1, 0.8),
+    }),
+}, stealHeader)
+
+local headerLine = New("Frame", {
+    Position         = UDim2.new(0.2, 0, 0, 0),
+    Size             = UDim2.new(0.6, 0, 0, 1),
+    BackgroundColor3 = T.Purple,
+    BackgroundTransparency = 0.85,
+    BorderSizePixel  = 0,
+}, stealHeader)
+New("UIGradient", {
+    Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0,   0.9),
+        NumberSequenceKeypoint.new(0.3, 0.3),
+        NumberSequenceKeypoint.new(0.7, 0.3),
+        NumberSequenceKeypoint.new(1,   0.9),
+    }),
+}, headerLine)
+
+-- Mode label (left)
+local stealModeLabel = New("TextLabel", {
+    Position              = UDim2.new(0, 12, 0, 0),
+    Size                  = UDim2.new(0.55, 0, 1, 0),
+    BackgroundTransparency = 1,
+    Text                  = "Target Selection",
+    TextColor3            = T.Cyan,
+    Font                  = Enum.Font.GothamBold,
+    TextSize              = 12,
+    TextXAlignment        = Enum.TextXAlignment.Left,
+}, stealHeader)
+Stroke(stealHeader, T.Cyan, 1, 0.75)
+
+-- Distance badge (right)
+local distBadge = New("Frame", {
+    Position              = UDim2.new(1, -90, 0.5, -9),
+    Size                  = UDim2.new(0, 80, 0, 18),
+    BackgroundColor3      = T.Cyan,
+    BackgroundTransparency = 0.92,
+    BorderSizePixel       = 0,
+}, stealHeader)
+Round(distBadge, 4)
+Stroke(distBadge, T.Cyan, 1, 0.75)
+
+local distLabel = New("TextLabel", {
+    Position              = UDim2.new(0, 3, 0, 0),
+    Size                  = UDim2.new(1, -6, 1, 0),
+    BackgroundTransparency = 1,
+    Text                  = "0.0 studs",
+    TextColor3            = T.Cyan,
+    Font                  = Enum.Font.GothamMedium,
+    TextSize              = 10,
+    TextXAlignment        = Enum.TextXAlignment.Center,
+}, distBadge)
+
+-- ── Target list (scrollable rows) ───────────────────────
+local targetListFrame = New("Frame", {
+    Position        = UDim2.new(0, 8, 0, 46),
+    Size            = UDim2.new(1, -16, 0, 298),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+}, stealBar)
+
+New("UIListLayout", {
+    SortOrder = Enum.SortOrder.LayoutOrder,
+    Padding   = UDim.new(0, 2),
+}, targetListFrame)
+
+-- ── Steal progress fill bar (bottom) ───────────────────
+local stealSep = New("Frame", {
+    Position         = UDim2.new(0, 10, 1, -38),
+    Size             = UDim2.new(1, -20, 0, 1),
+    BackgroundColor3 = T.Purple,
+    BackgroundTransparency = 0.9,
+    BorderSizePixel  = 0,
+}, stealBar)
+
+local stealFillBg = New("Frame", {
+    Position         = UDim2.new(0, 8, 1, -33),
+    Size             = UDim2.new(1, -16, 0, 20),
+    BackgroundColor3 = Color3.fromRGB(14, 12, 24),
+    BackgroundTransparency = 0.85,
+    BorderSizePixel  = 0,
+}, stealBar)
+Stroke(stealFillBg, T.Purple, 1, 0.65)
+
+local stealFill = New("Frame", {
+    Size             = UDim2.new(0, 0, 1, 0),
+    BackgroundTransparency = 0,
+    BorderSizePixel  = 0,
+}, stealFillBg)
+New("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0,   T.Purple),
+        ColorSequenceKeypoint.new(0.6, T.Blue),
+        ColorSequenceKeypoint.new(1,   T.Cyan),
+    }),
+}, stealFill)
+
+local stealPctLabel = New("TextLabel", {
+    Size                  = UDim2.new(1, 0, 1, 0),
+    BackgroundTransparency = 1,
+    Text                  = "0%",
+    TextColor3            = Color3.fromRGB(255, 255, 255),
+    TextStrokeColor3      = Color3.fromRGB(0, 0, 0),
+    TextStrokeTransparency = 0,
+    Font                  = Enum.Font.GothamBold,
+    TextSize              = 11,
+}, stealFillBg)
+
+-- Helper: add a target row to the steal panel
+local function AddTargetRow(playerName, brainrotName, gen, studs)
+    local row = New("Frame", {
+        Size                  = UDim2.new(1, 0, 0, 28),
+        BackgroundColor3      = Color3.fromRGB(16, 14, 24),
+        BackgroundTransparency = 0.7,
+        BorderSizePixel       = 0,
+    }, targetListFrame)
+    Round(row, 6)
+
+    -- rank badge
+    local badge = New("Frame", {
+        Name             = "RankBadge",
+        Position         = UDim2.new(0, 4, 0.5, -9),
+        Size             = UDim2.new(0, 18, 0, 18),
+        BackgroundColor3 = T.Gold,
+        BorderSizePixel  = 0,
+    }, row)
+    Round(badge, 5)
+    New("UIGradient", {
+        Rotation = 135,
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, T.Gold),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 215, 0)),
+        }),
+    }, badge)
+    New("TextLabel", {
+        Size                  = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text                  = tostring(gen),
+        TextColor3            = Color3.fromRGB(66, 32, 6),
+        Font                  = Enum.Font.GothamBlack,
+        TextSize              = 9,
+        ZIndex                = 2,
+    }, badge)
+
+    -- viewport mini icon placeholder
+    local vpBg = New("Frame", {
+        Position              = UDim2.new(0, 25, 0.5, -11),
+        Size                  = UDim2.new(0, 22, 0, 22),
+        BackgroundColor3      = Color3.fromRGB(10, 8, 16),
+        BackgroundTransparency = 0.4,
+        BorderSizePixel       = 0,
+    }, row)
+    Round(vpBg, 4)
+
+    -- name + value
+    New("TextLabel", {
+        Position              = UDim2.new(0, 50, 0, 0),
+        Size                  = UDim2.new(0.55, -52, 1, 0),
+        BackgroundTransparency = 1,
+        Text                  = playerName,
+        RichText              = true,
+        TextColor3            = T.Text,
+        Font                  = Enum.Font.GothamMedium,
+        TextScaled            = true,
+    }, row)
+
+    New("TextLabel", {
+        Position              = UDim2.new(0.62, 0, 0, 0),
+        Size                  = UDim2.new(0.38, -6, 1, 0),
+        BackgroundTransparency = 1,
+        Text                  = studs and (("%.1f"):format(studs) .. " st") or brainrotName,
+        TextColor3            = T.Green,
+        Font                  = Enum.Font.GothamMedium,
+        TextXAlignment        = Enum.TextXAlignment.Right,
+        TextScaled            = true,
+    }, row)
+
+    -- click-to-target
+    local btn = New("TextButton", {
+        Size                  = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text                  = "",
+        ZIndex                = 3,
+    }, row)
+    btn.MouseButton1Click:Connect(function()
+        State.StealTarget = playerName
+        stealModeLabel.Text = "Targeting: " .. playerName
+    end)
+
+    return row
+end
+
+-- ─────────────────────────────────────────────────────────
+--  MAIN HUB  (UI_740586)
+-- ─────────────────────────────────────────────────────────
+local HubGui = New("ScreenGui", {
+    Name           = "UI_740586",
+    DisplayOrder   = 5,
+    ZIndexBehavior = Enum.ZIndexBehavior.Global,
+    ResetOnSpawn   = false,
+}, PlayerGui)
+
+-- ── Draggable title bar (F_66176) ───────────────────────
+local titleBar = New("Frame", {
+    Name             = "F_66176",
+    Position         = UDim2.new(0.5, -92, 0, 50),
+    Size             = UDim2.new(0, 250, 0, 62),
+    BackgroundColor3 = T.BG_Panel,
+    BackgroundTransparency = 0.08,
+    BorderSizePixel  = 0,
+    Visible          = true,
+}, HubGui)
+Round(titleBar, 10)
+Stroke(titleBar, T.Purple)
+
+-- rainbow gradient accent bar on left edge
+local accentBar = New("Frame", {
+    Position         = UDim2.new(0, 5, 0, 4),
+    Size             = UDim2.new(0, 3, 1, -8),
+    BackgroundTransparency = 1,
+    BorderSizePixel  = 0,
+}, titleBar)
+New("UIGradient", {
+    Rotation = 0,
+    Color    = ColorSequence.new({
+        ColorSequenceKeypoint.new(0,   T.Purple),
+        ColorSequenceKeypoint.new(0.5, T.Cyan),
+        ColorSequenceKeypoint.new(1,   T.Purple),
+    }),
+}, accentBar)
+
+-- hub name
+local titleLabel = New("TextLabel", {
+    Position              = UDim2.new(0, 16, 0, 6),
+    Size                  = UDim2.new(0.75, 0, 0, 22),
+    BackgroundTransparency = 1,
+    Text                  = "BK's Hub v1.9",
+    TextColor3            = T.Purple,
+    TextStrokeColor3      = T.Purple,
+    TextStrokeTransparency = 0.45,
+    Font                  = Enum.Font.GothamBold,
+    TextSize              = 18,
+    TextXAlignment        = Enum.TextXAlignment.Left,
+}, titleBar)
+New("UIGradient", {
+    Rotation = 45,
+    Color    = ColorSequence.new({
+        ColorSequenceKeypoint.new(0,   T.Blue),
+        ColorSequenceKeypoint.new(1,   T.Cyan),
+    }),
+}, titleLabel)
+
+-- discord sub-line
+New("TextLabel", {
+    Position              = UDim2.new(0, 16, 0, 26),
+    Size                  = UDim2.new(0.65, 0, 0, 16),
+    BackgroundTransparency = 1,
+    Text                  = "discord.gg/bkshub | Lovely :3",
+    TextColor3            = T.Pink,
+    TextTransparency      = 0.15,
+    Font                  = Enum.Font.Gotham,
+    TextSize              = 11,
+    TextXAlignment        = Enum.TextXAlignment.Left,
+}, titleBar)
+
+-- FPS badge (bottom-right)
+local fpsBadge = New("Frame", {
+    Position              = UDim2.new(1, -93, 1, -24),
+    Size                  = UDim2.new(0, 85, 0, 18),
+    BackgroundColor3      = Color3.fromRGB(12, 22, 16),
+    BackgroundTransparency = 0.45,
+    BorderSizePixel       = 0,
+}, titleBar)
+Round(fpsBadge, 4)
+Stroke(fpsBadge, T.Green, 1, 0.6)
+
+local fpsLabel = New("TextLabel", {
+    Name                  = "Info_3087",
+    Position              = UDim2.new(0, 4, 0, 0),
+    Size                  = UDim2.new(1, -8, 1, 0),
+    BackgroundTransparency = 1,
+    Text                  = "FPS: -- | --ms",
+    TextColor3            = T.Green,
+    Font                  = Enum.Font.GothamMedium,
+    TextSize              = 10,
+}, fpsBadge)
+New("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, T.Cyan),
+        ColorSequenceKeypoint.new(1, T.Green),
+    }),
+}, fpsLabel)
+
+-- scale tracker
+local titleScale = New("UIScale", {}, titleBar)
+
+-- ── Main window  (F_97337) ─────────────────────────────
+local mainWin = New("Frame", {
+    Name                  = "F_97337",
+    Position              = UDim2.new(0.5, -210, 0.5, -210),
+    Size                  = UDim2.new(0, 420, 0, 420),
+    BackgroundColor3      = T.BG_Deep,
+    BackgroundTransparency = 0.02,
+    BorderSizePixel       = 0,
+    Visible               = true,
+}, HubGui)
+Round(mainWin, 14)
+
+-- animated breathing border
+local bkBorder = New("UIStroke", {
+    Name        = "BKBorder",
+    Thickness   = 1.5,
+    Color       = T.Cyan,
+    Transparency = 0.35,
+}, mainWin)
+
+-- ── Star-field decorative layer ────────────────────────
+local starClip = New("Frame", {
+    Name             = "StarClip",
+    Size             = UDim2.new(1, 0, 1, 0),
+    BackgroundTransparency = 1,
+    ZIndex           = 2,
+}, mainWin)
+Round(starClip, 14)
+
+local starLayer = New("Frame", {
+    Name             = "StarLayer",
+    AnchorPoint      = Vector2.new(0.5, 0.5),
+    Position         = UDim2.new(0.5, 0, 0.5, 0),
+    Size             = UDim2.new(1.5, 0, 1.5, 0),
+    BackgroundTransparency = 1,
+}, starClip)
+
+-- Procedurally scatter 20 tiny star dots
+local rng = Random.new()
+for i = 1, 20 do
+    local sz   = rng:NextInteger(2, 5)
+    local star = New("Frame", {
+        AnchorPoint      = Vector2.new(0.5, 0.5),
+        Position         = UDim2.new(rng:NextNumber(0.05, 0.95), 0, rng:NextNumber(0.05, 0.95), 0),
+        Size             = UDim2.new(0, sz, 0, sz),
+        BackgroundColor3 = Color3.fromRGB(200 + rng:NextInteger(0, 55), 200 + rng:NextInteger(0, 55), 255),
+        BackgroundTransparency = rng:NextNumber(0.2, 0.7),
+        BorderSizePixel  = 0,
+    }, starLayer)
+    Round(star, sz)
+    -- inner glow
+    local glow = New("Frame", {
+        AnchorPoint      = Vector2.new(0.5, 0.5),
+        Position         = UDim2.new(0.5, 0, 0.5, 0),
+        Size             = UDim2.new(0, sz * 2.5, 0, sz * 2.5),
+        BackgroundTransparency = 1,
+        BorderSizePixel  = 0,
+    }, star)
+    Round(glow, sz * 2)
+end
+
+-- ── Orb decorative layer (soft glowing blobs) ─────────
+local orbLayer = New("Frame", {
+    Name             = "OrbLayer",
+    Size             = UDim2.new(1, 0, 1, 0),
+    BackgroundTransparency = 1,
+    ZIndex           = 1,
+}, mainWin)
+Round(orbLayer, 14)
+
+local ORB_DEF = {
+    { pos = Vector2.new(0.12, 0.58), sz = 46, col = T.Purple },
+    { pos = Vector2.new(0.62, 0.73), sz = 24, col = T.Blue   },
+    { pos = Vector2.new(0.80, 0.25), sz = 56, col = T.Pink   },
+    { pos = Vector2.new(0.27, 0.50), sz = 21, col = T.Blue   },
+}
+for _, d in ipairs(ORB_DEF) do
+    local orb = New("Frame", {
+        AnchorPoint      = Vector2.new(0.5, 0.5),
+        Position         = UDim2.new(d.pos.X, 0, d.pos.Y, 0),
+        Size             = UDim2.new(0, d.sz, 0, d.sz),
+        BackgroundColor3 = d.col,
+        BackgroundTransparency = 0.94,
+        BorderSizePixel  = 0,
+    }, orbLayer)
+    Round(orb, d.sz)
+    local inner = New("Frame", {
+        AnchorPoint      = Vector2.new(0.5, 0.5),
+        Position         = UDim2.new(0.5, 0, 0.5, 0),
+        Size             = UDim2.new(0, d.sz * 0.75, 0, d.sz * 0.75),
+        BackgroundColor3 = d.col,
+        BackgroundTransparency = 0.82,
+        BorderSizePixel  = 0,
+    }, orb)
+    Round(inner, d.sz)
+end
+
+-- ── Left sidebar  (S_5994) ────────────────────────────
+local sidebar = New("Frame", {
+    Name                  = "S_5994",
+    Position              = UDim2.new(0, 0, 0, 0),
+    Size                  = UDim2.new(0, 100, 1, 0),
+    BackgroundColor3      = Color3.fromRGB(10, 10, 17),
+    BackgroundTransparency = 0.05,
+    BorderSizePixel       = 0,
+    ZIndex                = 4,
+}, mainWin)
+Round(sidebar, 14)
+Stroke(sidebar, T.Purple, 1.2, 0.5)
+New("UIGradient", {
+    Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0,    0.95),
+        NumberSequenceKeypoint.new(0.5,  0.98),
+        NumberSequenceKeypoint.new(1,    0.95),
+    }),
+}, sidebar)
+
+-- profile / logo card at top of sidebar
+local logoCard = New("Frame", {
+    Position              = UDim2.new(0, 0, 0, 8),
+    Size                  = UDim2.new(1, 0, 0, 65),
+    BackgroundTransparency = 0.6,
+    BorderSizePixel       = 0,
+}, sidebar)
+Round(logoCard, 8)
+New("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 209, 240)),
+    }),
+    Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0,   0.92),
+        NumberSequenceKeypoint.new(1,   0.98),
+    }),
+}, logoCard)
+
+local logoInner = New("Frame", {
+    Position              = UDim2.new(0, 4, 0, 0),
+    Size                  = UDim2.new(1, -8, 0, 57),
+    BackgroundTransparency = 0.1,
+    BorderSizePixel       = 0,
+}, logoCard)
+Round(logoInner, 8)
+New("UIGradient", {
+    Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0,   0.8),
+        NumberSequenceKeypoint.new(0.5, 0.6),
+        NumberSequenceKeypoint.new(1,   0.8),
+    }),
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0,   T.Cyan),
+        ColorSequenceKeypoint.new(0.3, T.Blue),
+        ColorSequenceKeypoint.new(0.7, T.Purple),
+        ColorSequenceKeypoint.new(1,   T.Cyan),
+    }),
+}, logoInner)
+
+local imgFrame = New("Frame", {
+    Position              = UDim2.new(0, 8, 0, 4),
+    Size                  = UDim2.new(1, -16, 0, 49),
+    BackgroundTransparency = 0.1,
+    BorderSizePixel       = 0,
+}, logoInner)
+Round(imgFrame, 12)
+Stroke(imgFrame, T.Cyan, 2, 0.3)
+
+New("ImageLabel", {
+    Image                 = "rbxassetid://137079323322559",
+    BackgroundTransparency = 1,
+    Position              = UDim2.new(0, 6, 0, 3),
+    Size                  = UDim2.new(1, -12, 0, 43),
+    ScaleType             = Enum.ScaleType.Fit,
+}, imgFrame)
+Round(imgFrame, 12)
+
+-- ── Tab buttons ───────────────────────────────────────
+local TAB_DEFS = {
+    { label = "Brainrots", icon = "rbxassetid://77557504890614",   accent = T.Purple,    order = 1 },
+    { label = "Features",  icon = "rbxassetid://15503803894",      accent = T.Blue,      order = 2 },
+    { label = "Misc",      icon = "rbxassetid://5430510661",       accent = T.Gold,      order = 3 },
+    { label = "Priority",  icon = "rbxassetid://15351827198",      accent = T.Pink,      order = 4 },
+    { label = "Settings",  icon = "rbxassetid://97282578685434",   accent = T.Pink,      order = 5 },
+    { label = "Credits",   icon = "rbxassetid://118876295086694",  accent = T.Pink,      order = 6 },
+}
+
+local tabButtons  = {}
+local tabContents = {}
+local activeTab   = nil
+
+local tabListFrame = New("Frame", {
+    Position              = UDim2.new(0, 0, 0, 73),
+    Size                  = UDim2.new(1, 0, 1, -120),
+    BackgroundTransparency = 1,
+}, sidebar)
+New("UIListLayout", {
+    VerticalAlignment   = Enum.VerticalAlignment.Top,
+    HorizontalAlignment = Enum.HorizontalAlignment.Center,
+    Padding             = UDim.new(0, 6),
+}, tabListFrame)
+New("UIPadding", {
+    PaddingTop   = UDim.new(0, 10),
+    PaddingLeft  = UDim.new(0, 8),
+    PaddingRight = UDim.new(0, 8),
+}, tabListFrame)
+
+local function SelectTab(name)
+    for _, def in ipairs(TAB_DEFS) do
+        local btn     = tabButtons[def.label]
+        local content = tabContents[def.label]
+        local isActive = (def.label == name)
+
+        if btn then
+            btn.BackgroundColor3      = isActive and Color3.fromRGB(39, 27, 56) or T.BG_Entry
+            btn.BackgroundTransparency = isActive and 0.05 or 0.95
+            if btn:FindFirstChild("UIGradient") then
+                btn.UIGradient.Enabled = isActive
+            end
+            if btn:FindFirstChild("AccentBar") then
+                btn.AccentBar.BackgroundColor3 = def.accent
+                btn.AccentBar.BackgroundTransparency = isActive and 0 or 1
             end
         end
-        
-        dotConnection = game:GetService("RunService").Heartbeat:Connect(function()
-            updateDots()
-        end)
-        
-        -- Store connection for cleanup
-        LoadingUIElements.dotConnection = dotConnection
-        
-        -- Auto-hide loading UI after 2 seconds
+        if content then
+            content.Visible = isActive
+        end
+    end
+    activeTab = name
+end
+
+for _, def in ipairs(TAB_DEFS) do
+    local btn = New("TextButton", {
+        LayoutOrder           = def.order,
+        Size                  = UDim2.new(1, -12, 0, 38),
+        BackgroundColor3      = T.BG_Entry,
+        BackgroundTransparency = 0.95,
+        BorderSizePixel       = 0,
+        Text                  = "",
+    }, tabListFrame)
+    Round(btn, 8)
+    Stroke(btn, def.accent, 1.2, 0.85)
+
+    New("UIGradient", {
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, def.accent),
+            ColorSequenceKeypoint.new(1, T.BG_Deep),
+        }),
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.85),
+            NumberSequenceKeypoint.new(1, 0.95),
+        }),
+        Enabled = false,
+    }, btn)
+
+    -- coloured accent bar on left
+    local ab = New("Frame", {
+        Name             = "AccentBar",
+        Position         = UDim2.new(0, 0, 0.2, 0),
+        Size             = UDim2.new(0, 3, 0.6, 0),
+        BackgroundColor3 = def.accent,
+        BackgroundTransparency = 1,
+        BorderSizePixel  = 0,
+    }, btn)
+    Round(ab, 2)
+
+    -- icon frame
+    local iconBg = New("Frame", {
+        Position              = UDim2.new(0, 9, 0.5, -13),
+        Size                  = UDim2.new(0, 26, 0, 26),
+        BackgroundColor3      = def.accent,
+        BackgroundTransparency = 0.8,
+        BorderSizePixel       = 0,
+    }, btn)
+    Round(iconBg, 6)
+
+    New("ImageLabel", {
+        Size                  = UDim2.new(0, 16, 0, 16),
+        Position              = UDim2.new(0.5, -8, 0.5, -8),
+        Image                 = def.icon,
+        ImageColor3           = def.accent,
+        BackgroundTransparency = 1,
+    }, iconBg)
+
+    New("TextLabel", {
+        Position              = UDim2.new(0, 40, 0, 0),
+        Size                  = UDim2.new(1, -48, 1, 0),
+        BackgroundTransparency = 1,
+        Text                  = def.label,
+        TextColor3            = T.Text,
+        Font                  = Enum.Font.GothamMedium,
+        TextSize              = 12,
+        TextXAlignment        = Enum.TextXAlignment.Left,
+    }, btn)
+
+    tabButtons[def.label] = btn
+
+    btn.MouseEnter:Connect(function()
+        if activeTab ~= def.label then
+            Tween(btn, TweenInfo.new(0.15), { BackgroundTransparency = 0.8 })
+        end
+    end)
+    btn.MouseLeave:Connect(function()
+        if activeTab ~= def.label then
+            Tween(btn, TweenInfo.new(0.15), { BackgroundTransparency = 0.95 })
+        end
+    end)
+    btn.MouseButton1Click:Connect(function()
+        SelectTab(def.label)
+    end)
+end
+
+-- ── Right content area  (R_2912) ──────────────────────
+local contentArea = New("Frame", {
+    Name             = "R_2912",
+    Position         = UDim2.new(0, 100, 0, 0),
+    Size             = UDim2.new(1, -100, 1, 0),
+    BackgroundTransparency = 1,
+}, mainWin)
+
+-- content header strip
+local contentHeader = New("Frame", {
+    Name                  = "H_3911",
+    Size                  = UDim2.new(1, 0, 0, 55),
+    BackgroundTransparency = 0.75,
+    BorderSizePixel       = 0,
+}, contentArea)
+New("UIGradient", {
+    Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0,   0.92),
+        NumberSequenceKeypoint.new(1,   0.98),
+    }),
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 209, 240)),
+    }),
+}, contentHeader)
+
+local headerBottomLine = New("Frame", {
+    Position         = UDim2.new(0, 0, 1, -1),
+    Size             = UDim2.new(1, 0, 0, 1),
+    BackgroundColor3 = T.Purple,
+    BackgroundTransparency = 0.3,
+    BorderSizePixel  = 0,
+}, contentHeader)
+New("UIGradient", {
+    Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0,   0.9),
+        NumberSequenceKeypoint.new(0.3, 0.3),
+        NumberSequenceKeypoint.new(0.7, 0.3),
+        NumberSequenceKeypoint.new(1,   0.9),
+    }),
+}, headerBottomLine)
+
+local headerTitle = New("TextLabel", {
+    Position              = UDim2.new(0, 15, 0, 8),
+    Size                  = UDim2.new(1, -160, 0, 22),
+    BackgroundTransparency = 1,
+    Text                  = "Brainrots",
+    TextColor3            = T.Text,
+    Font                  = Enum.Font.GothamBold,
+    TextSize              = 16,
+    TextXAlignment        = Enum.TextXAlignment.Left,
+}, contentHeader)
+New("UIGradient", {
+    Rotation = 45,
+    Color    = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, T.Cyan),
+        ColorSequenceKeypoint.new(1, T.Purple),
+    }),
+}, headerTitle)
+
+New("TextLabel", {
+    Position              = UDim2.new(0, 15, 0, 32),
+    Size                  = UDim2.new(1, -60, 0, 14),
+    BackgroundTransparency = 1,
+    Text                  = "Scan results for current server",
+    TextColor3            = T.TextDim,
+    Font                  = Enum.Font.Gotham,
+    TextSize              = 10,
+    TextXAlignment        = Enum.TextXAlignment.Left,
+}, contentHeader)
+
+-- FPS counter in header
+local headerFps = New("Frame", {
+    Position              = UDim2.new(1, -106, 0.5, -11),
+    Size                  = UDim2.new(0, 100, 0, 22),
+    BackgroundColor3      = Color3.fromRGB(12, 22, 16),
+    BorderSizePixel       = 0,
+}, contentHeader)
+Round(headerFps, 6)
+Stroke(headerFps, T.Green, 1, 0.6)
+
+local headerFpsLabel = New("TextLabel", {
+    Position              = UDim2.new(0, 4, 0, 0),
+    Size                  = UDim2.new(1, -8, 1, 0),
+    BackgroundTransparency = 1,
+    Text                  = "FPS: -- | --ms",
+    TextColor3            = T.Green,
+    Font                  = Enum.Font.GothamMedium,
+    TextSize              = 10,
+}, headerFps)
+
+-- Tabs viewport
+local tabViewport = New("Frame", {
+    Name             = "C_2071",
+    Position         = UDim2.new(0, 0, 0, 55),
+    Size             = UDim2.new(1, 0, 1, -55),
+    BackgroundTransparency = 1,
+    ClipsDescendants = true,
+}, contentArea)
+
+-- ────────────────────────────────────────────────────────
+--  TAB: BRAINROTS
+-- ────────────────────────────────────────────────────────
+local brainrotTab = New("Frame", {
+    Name             = "ScriptsTab",
+    Size             = UDim2.new(1, 0, 1, 0),
+    BackgroundTransparency = 1,
+    Visible          = true,
+}, tabViewport)
+tabContents["Brainrots"] = brainrotTab
+
+-- search bar
+local searchFrame = New("Frame", {
+    Position        = UDim2.new(0, 10, 0, 10),
+    Size            = UDim2.new(1, -20, 0, 40),
+    BackgroundColor3 = T.BG_Panel,
+    BorderSizePixel = 0,
+}, brainrotTab)
+Round(searchFrame, 8)
+Stroke(searchFrame, T.Purple, 1, 0.6)
+
+local searchBox = New("TextBox", {
+    Position              = UDim2.new(0, 15, 0, 0),
+    Size                  = UDim2.new(1, -30, 1, 0),
+    BackgroundTransparency = 1,
+    Text                  = "",
+    ClearTextOnFocus      = false,
+    PlaceholderText       = "Search brainrots, mutations, traits…",
+    PlaceholderColor3     = T.Pink,
+    TextColor3            = T.TextAccent,
+    TextStrokeColor3      = T.Purple,
+    TextStrokeTransparency = 0.65,
+    Font                  = Enum.Font.Gotham,
+    TextSize              = 14,
+    TextXAlignment        = Enum.TextXAlignment.Left,
+}, searchFrame)
+New("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, T.Cyan),
+        ColorSequenceKeypoint.new(1, T.Purple),
+    }),
+    Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.3),
+        NumberSequenceKeypoint.new(1, 0.6),
+    }),
+}, searchBox)
+
+-- animal scroll list
+local animalList = New("ScrollingFrame", {
+    Name                    = "AnimalList",
+    Position                = UDim2.new(0, 10, 0, 58),
+    Size                    = UDim2.new(1, -20, 1, -60),
+    BackgroundColor3        = T.BG_Panel,
+    BackgroundTransparency  = 0.85,
+    BorderSizePixel         = 0,
+    ScrollBarThickness      = 5,
+    ScrollBarImageColor3    = T.Cyan,
+    AutomaticCanvasSize     = Enum.AutomaticSize.Y,
+    CanvasSize              = UDim2.new(0, 0, 0, 0),
+}, brainrotTab)
+Round(animalList, 8)
+New("UIListLayout", { Padding = UDim.new(0, 8) }, animalList)
+New("UIPadding", {
+    PaddingTop    = UDim.new(0, 4),
+    PaddingBottom = UDim.new(0, 4),
+    PaddingLeft   = UDim.new(0, 4),
+    PaddingRight  = UDim.new(0, 4),
+}, animalList)
+
+-- Helper: create one animal entry card
+local function AddAnimalEntry(data)
+    --[[  data = {
+            name     : string,
+            rarity   : string,
+            mutation : string | nil,
+            coins    : number,
+            model    : Model | nil,
+            plotId   : string | nil,
+            isCarpet : bool,
+        }
+    --]]
+    local rCol  = RARITY_COLOR[data.rarity] or T.Text
+    local entry = New("Frame", {
+        Name                  = "AnimalEntry",
+        Size                  = UDim2.new(1, 0, 0, 110),
+        BackgroundColor3      = T.BG_Entry,
+        BackgroundTransparency = 0.05,
+        BorderSizePixel       = 0,
+    }, animalList)
+    Round(entry, 10)
+
+    -- coloured left border
+    local colorBar = New("Frame", {
+        Position         = UDim2.new(0, 0, 0, 4),
+        Size             = UDim2.new(0, 4, 1, -8),
+        BackgroundColor3 = rCol,
+        BorderSizePixel  = 0,
+    }, entry)
+    Round(colorBar, 2)
+
+    -- inner viewport frame (3D model preview)
+    local vpBg = New("Frame", {
+        Position              = UDim2.new(0, 0, 0, 0),
+        Size                  = UDim2.new(0, 110, 1, 0),
+        BackgroundColor3      = Color3.fromRGB(12, 8, 20),
+        BackgroundTransparency = 0,
+        BorderSizePixel       = 0,
+    }, entry)
+    Round(vpBg, 10)
+    Stroke(vpBg, rCol, 1.5, 0.5)
+
+    local vp = New("ViewportFrame", {
+        Size                  = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel       = 0,
+        Ambient               = Color3.fromRGB(180, 180, 180),
+        LightColor            = Color3.fromRGB(255, 255, 255),
+        LightDirection        = Vector3.new(-1, -1, -1),
+    }, vpBg)
+
+    -- status dot (carpet indicator)
+    local dotCol = data.isCarpet and T.Green or rCol
+    local dot = New("Frame", {
+        Position         = UDim2.new(1, -12, 0, 12),
+        Size             = UDim2.new(0, 8, 0, 8),
+        BackgroundColor3 = dotCol,
+        BorderSizePixel  = 0,
+    }, vpBg)
+    Round(dot, 4)
+
+    -- rarity badge
+    local rBadge = New("Frame", {
+        Position         = UDim2.new(1, -150, 0, 12),
+        Size             = UDim2.new(0, 60, 0, 18),
+        BackgroundColor3 = rCol,
+        BackgroundTransparency = 0.5,
+        BorderSizePixel  = 0,
+    }, entry)
+    Round(rBadge, 6)
+    New("TextLabel", {
+        Size                  = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text                  = data.rarity or "Unknown",
+        TextColor3            = Color3.fromRGB(255, 255, 255),
+        Font                  = Enum.Font.GothamBold,
+        TextSize              = 11,
+    }, rBadge)
+
+    -- name
+    New("TextLabel", {
+        Position              = UDim2.new(0, 118, 0, 10),
+        Size                  = UDim2.new(1, -280, 0, 22),
+        BackgroundTransparency = 1,
+        Text                  = (data.isCarpet and "🛸" or "🚶") .. data.name,
+        TextColor3            = rCol,
+        Font                  = Enum.Font.GothamBold,
+        TextSize              = 15,
+        TextXAlignment        = Enum.TextXAlignment.Left,
+    }, entry)
+
+    -- mutation row
+    New("TextLabel", {
+        Position              = UDim2.new(0, 118, 0, 36),
+        Size                  = UDim2.new(0, 120, 0, 18),
+        BackgroundTransparency = 1,
+        Text                  = data.mutation or "None",
+        TextColor3            = data.mutation and Color3.fromRGB(200, 180, 255) or T.TextDim,
+        Font                  = Enum.Font.Gotham,
+        TextSize              = 12,
+        TextXAlignment        = Enum.TextXAlignment.Left,
+    }, entry)
+
+    -- plot id
+    New("TextLabel", {
+        Position              = UDim2.new(0, 118, 0, 58),
+        Size                  = UDim2.new(1, -280, 0, 18),
+        BackgroundTransparency = 1,
+        Text                  = data.plotId and ("Plot " .. data.plotId) or "—",
+        TextColor3            = T.TextDim,
+        Font                  = Enum.Font.Gotham,
+        TextSize              = 11,
+        TextXAlignment        = Enum.TextXAlignment.Left,
+    }, entry)
+
+    -- coins-per-second
+    New("TextLabel", {
+        Position              = UDim2.new(0, 118, 0, 78),
+        Size                  = UDim2.new(1, -130, 0, 22),
+        BackgroundTransparency = 1,
+        Text                  = FmtCoins(data.coins or 0),
+        TextColor3            = T.Green,
+        Font                  = Enum.Font.GothamBold,
+        TextSize              = 14,
+        TextXAlignment        = Enum.TextXAlignment.Left,
+    }, entry)
+
+    -- favourite button
+    local favBtn = New("TextButton", {
+        Position              = UDim2.new(1, -128, 0.5, -16),
+        Size                  = UDim2.new(0, 32, 0, 32),
+        BackgroundColor3      = T.BG_Panel,
+        BackgroundTransparency = 0.1,
+        Text                  = "🔥",
+        TextSize              = 16,
+        BorderSizePixel       = 0,
+    }, entry)
+    Round(favBtn, 6)
+    Stroke(favBtn, rCol, 1, 0.5)
+
+    -- teleport button
+    local tpBtn = New("TextButton", {
+        Position              = UDim2.new(1, -90, 0.5, -16),
+        Size                  = UDim2.new(0, 80, 0, 32),
+        BackgroundColor3      = T.BG_Panel,
+        BackgroundTransparency = 0.08,
+        Text                  = "Teleport",
+        TextColor3            = Color3.fromRGB(255, 255, 255),
+        TextStrokeTransparency = 0.45,
+        Font                  = Enum.Font.GothamBold,
+        TextSize              = 13,
+        BorderSizePixel       = 0,
+    }, entry)
+    Round(tpBtn, 6)
+    Stroke(tpBtn, rCol, 1, 0.5)
+
+    tpBtn.MouseButton1Click:Connect(function()
+        if data.model and data.model.PrimaryPart then
+            LocalPlayer.Character:MoveTo(data.model.PrimaryPart.Position)
+        end
+        ShowNotif("🚀", "Teleporting to " .. data.name, "info")
+    end)
+
+    -- load 3-D model into viewport
+    if data.model then
         task.spawn(function()
-            task.wait(2)
-            hideLoadingUI()
+            local wm   = Instance.new("WorldModel")
+            wm.Parent  = vp
+            local clone = data.model:Clone()
+            clone.Parent = wm
+
+            local cam = Instance.new("Camera")
+            cam.FieldOfView = 50
+            cam.Parent = vp
+            vp.CurrentCamera = cam
+
+            local cf = data.model.PrimaryPart
+                and CFrame.new(data.model.PrimaryPart.Position)
+                or CFrame.new()
+            cam.CFrame = cf * CFrame.new(0, 2, 6) * CFrame.Angles(0, math.pi, 0)
         end)
     end
 
-    -- Function to hide loading UI
-    hideLoadingUI = function()
-        -- Hide loading UI immediately (no wait)
-        if LoadingUIElements and LoadingUIElements.dotConnection then
-            LoadingUIElements.dotConnection:Disconnect()
-        end
-        
-        if LoadingUI then
-            LoadingUI:Destroy()
-            LoadingUI = nil
-            LoadingUIElements = {}
-        end
-    end
+    return entry
+end
 
-    -- Function to update loading UI status
-    local function updateLoadingStatus(status)
-        if LoadingUIElements and LoadingUIElements["b"] then
-            LoadingUIElements["b"].Text = status
-        end
-    end
+-- ────────────────────────────────────────────────────────
+--  TAB: FEATURES  (toggles)
+-- ────────────────────────────────────────────────────────
+local featuresTab = New("Frame", {
+    Size             = UDim2.new(1, 0, 1, 0),
+    BackgroundTransparency = 1,
+    Visible          = false,
+}, tabViewport)
+tabContents["Features"] = featuresTab
 
-    -- Retry logic removed - just move on to new brainrots after first failure
+local featScroll = New("ScrollingFrame", {
+    Position                 = UDim2.new(0, 10, 0, 10),
+    Size                     = UDim2.new(1, -20, 1, -20),
+    BackgroundTransparency   = 1,
+    BorderSizePixel          = 0,
+    ScrollBarThickness       = 4,
+    ScrollBarImageColor3     = T.Purple,
+    AutomaticCanvasSize      = Enum.AutomaticSize.Y,
+    CanvasSize               = UDim2.new(0, 0, 0, 0),
+}, featuresTab)
+New("UIListLayout", { Padding = UDim.new(0, 6) }, featScroll)
 
+local FEATURE_DEFS = {
+    { key = "StealHighestGen",  label = "Steal Highest Gen",      color = T.Purple },
+    { key = "StealNearest",     label = "Steal Nearest",          color = T.Cyan   },
+    { key = "StealBestValue",   label = "Steal Best Value",       color = T.Gold   },
+    { key = "StealWalking",     label = "Steal Walking / Carpet", color = T.Blue   },
+    { key = "InvisibleSteal",   label = "Invisible Steal",        color = T.Pink   },
+    { key = "AutoKickAfter",    label = "Auto-Kick After Steal",  color = T.Green  },
+    { key = "AutoUnlockDoor",   label = "Auto Unlock Door",       color = T.Cyan   },
+    { key = "DestroyTurret",    label = "Destroy Turret",         color = T.Pink   },
+}
 
-    -- Filter variables
-    local generationFilterEnabled = false
-    local minGeneration = ""
-    local minGenerationValue = 0  -- Store the actual numeric value
-    
-    -- Convert min generation string to actual number
-    local function updateMinGenerationValue()
-        if minGeneration and minGeneration ~= "" then
-            minGenerationValue = parseGeneration(minGeneration)
-        else
-            minGenerationValue = 0
-        end
-    end
-    local onlyJoinEnabled = false
-    local onlyJoinBrainrots = {} -- Will store {name = "brainrot", type = "join" or "ignore"}
-    local isSettingsOpen = true
+for _, fd in ipairs(FEATURE_DEFS) do
+    local row = New("Frame", {
+        Size                  = UDim2.new(1, 0, 0, 32),
+        BackgroundColor3      = T.BG_Entry,
+        BackgroundTransparency = 0.4,
+        BorderSizePixel       = 0,
+    }, featScroll)
+    Round(row, 8)
+    Stroke(row, fd.color, 1, 0.75)
 
-    -- Configuration save/load system
-    local CONFIG_KEY = "AutoJoinerConfig_" .. LocalPlayer.UserId
+    New("TextLabel", {
+        Position              = UDim2.new(0, 8, 0, 0),
+        Size                  = UDim2.new(1, -60, 1, 0),
+        BackgroundTransparency = 1,
+        Text                  = fd.label,
+        TextColor3            = T.Text,
+        Font                  = Enum.Font.GothamMedium,
+        TextSize              = 13,
+        TextXAlignment        = Enum.TextXAlignment.Left,
+    }, row)
 
-    local function saveConfig()
-        local config = {
-            generationFilterEnabled = generationFilterEnabled,
-            minGeneration = minGeneration,
-            onlyJoinEnabled = onlyJoinEnabled,
-            onlyJoinBrainrots = onlyJoinBrainrots
-        }
-        
-        local success, err = pcall(function()
-            local jsonString = HttpService:JSONEncode(config)
-            
-            -- Try different save methods for different executors
-            if syn and syn.crypt and syn.crypt.base64 and syn.crypt.base64.encode then
-                -- Synapse method - save to registry
-                syn.crypt.base64.encode(jsonString)
-                syn.set_clipboard(jsonString) -- Backup to clipboard
-            elseif writefile then
-                -- Standard writefile method
-                writefile("AutoJoinerConfig.json", jsonString)
-            elseif getgenv and getgenv().writefile then
-                -- Alternative writefile method
-                getgenv().writefile("AutoJoinerConfig.json", jsonString)
-            else
-                -- Fallback: save to workspace
-                local configFolder = game:GetService("Workspace"):FindFirstChild("AutoJoinerConfig")
-                if not configFolder then
-                    configFolder = Instance.new("Folder")
-                    configFolder.Name = "AutoJoinerConfig"
-                    configFolder.Parent = game:GetService("Workspace")
-                end
-                
-                local configValue = configFolder:FindFirstChild("ConfigData")
-                if not configValue then
-                    configValue = Instance.new("StringValue")
-                    configValue.Name = "ConfigData"
-                    configValue.Parent = configFolder
-                end
-                configValue.Value = jsonString
-            end
-        end)
-        
-        if success then
-            if addLogEntry then
-                addLogEntry("Configuration saved successfully")
-            end
-        else
-            if addLogEntry then
-                addLogEntry("Failed to save configuration: " .. tostring(err))
-            end
-        end
-    end
+    -- toggle switch
+    local toggleBg = New("Frame", {
+        Position              = UDim2.new(1, -46, 0.5, -10),
+        Size                  = UDim2.new(0, 40, 0, 20),
+        BackgroundColor3      = Color3.fromRGB(30, 28, 38),
+        BorderSizePixel       = 0,
+    }, row)
+    Round(toggleBg, 10)
+    Stroke(toggleBg, fd.color, 1, 0.55)
+    New("UIGradient", {
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, fd.color),
+            ColorSequenceKeypoint.new(1, T.BG_Deep),
+        }),
+    }, toggleBg)
 
-    local function loadConfig()
-        local success, config = pcall(function()
-            local jsonString = ""
-            
-            -- Try different load methods for different executors
-            if syn and syn.crypt and syn.crypt.base64 and syn.crypt.base64.decode then
-                -- Synapse method - try to load from registry or clipboard
-                local clipboard = syn.get_clipboard()
-                if clipboard and clipboard ~= "" then
-                    jsonString = clipboard
-                end
-            elseif readfile then
-                -- Standard readfile method
-                jsonString = readfile("AutoJoinerConfig.json")
-            elseif getgenv and getgenv().readfile then
-                -- Alternative readfile method
-                jsonString = getgenv().readfile("AutoJoinerConfig.json")
-            else
-                -- Fallback: load from workspace
-                local configFolder = game:GetService("Workspace"):FindFirstChild("AutoJoinerConfig")
-                if configFolder then
-                    local configValue = configFolder:FindFirstChild("ConfigData")
-                    if configValue then
-                        jsonString = configValue.Value
-                    end
-                end
-            end
-            
-            if jsonString and jsonString ~= "" then
-                return HttpService:JSONDecode(jsonString)
-            end
-            return nil
-        end)
-        
-        if success and config then
-            generationFilterEnabled = config.generationFilterEnabled or false
-            minGeneration = config.minGeneration or ""
-            updateMinGenerationValue()
-            onlyJoinEnabled = config.onlyJoinEnabled or false
-            onlyJoinBrainrots = config.onlyJoinBrainrots or {}
-            
-            if addLogEntry then
-                addLogEntry("Configuration loaded successfully")
-            end
-            
-            return true
-        else
-            if addLogEntry then
-                addLogEntry("No saved configuration found or failed to load")
-            end
-            return false
-        end
-    end
+    local knob = New("Frame", {
+        Position              = UDim2.new(0, 2, 0.5, -8),
+        Size                  = UDim2.new(0, 16, 0, 16),
+        BackgroundColor3      = Color3.fromRGB(255, 255, 255),
+        BorderSizePixel       = 0,
+    }, toggleBg)
+    Round(knob, 8)
+    Stroke(knob, Color3.fromRGB(40, 40, 50), 1, 0.8)
 
-    -- Helper function to apply loaded configuration to UI
-    local function applyLoadedConfig()
-        
-        -- Debug: Check what GUI elements are available
-        if G2L then
-        else
-            return
-        end
-        
-        -- Update UI to reflect loaded settings
-        if G2L and G2L["30"] then
-            G2L["30"].Text = minGeneration
-        else
-            -- Try alternative approach - find the TextBox by name
-            if G2L and G2L["2d"] then
-                local minGenInput = G2L["2d"]:FindFirstChild("MinGenInput")
-                if minGenInput then
-                    minGenInput.Text = minGeneration
-                else
-                end
-            end
-        end
-        
-        -- Update toggle states visually
-        if generationFilterEnabled then
-            if G2L and G2L["35"] and G2L["33"] then
-                -- Set toggle to ON position (right side)
-                G2L["35"].Position = UDim2.new(0.79, 0, 0.5, 0)
-                G2L["33"].BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Green
-            else
-            end
-        else
-            if G2L and G2L["35"] and G2L["33"] then
-                -- Set toggle to OFF position (left side)
-                G2L["35"].Position = UDim2.new(0.21, 0, 0.5, 0)
-                G2L["33"].BackgroundColor3 = Color3.fromRGB(255, 70, 50) -- Red
-            end
-        end
-        
-        if onlyJoinEnabled then
-            if G2L and G2L["46"] and G2L["44"] then
-                -- Set toggle to ON position (right side)
-                G2L["46"].Position = UDim2.new(0.79, 0, 0.48, 0)
-                G2L["44"].BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Green
-            else
-            end
-        else
-            if G2L and G2L["46"] and G2L["44"] then
-                -- Set toggle to OFF position (left side)
-                G2L["46"].Position = UDim2.new(0.21, 0, 0.48, 0)
-                G2L["44"].BackgroundColor3 = Color3.fromRGB(255, 70, 50) -- Red
-            end
-        end
-        
-        -- Recreate brainrot list items
-        if G2L and G2L["3e"] then
-            for i, brainrotName in ipairs(onlyJoinBrainrots) do
-                recreateBrainrotListItem(brainrotName)
-            end
-        else
-        end
-        
-    end
+    local togBtn = New("TextButton", {
+        Size                  = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text                  = "",
+    }, toggleBg)
 
-    -- Helper function to recreate brainrot list items (for loading)
-    local function recreateBrainrotListItem(brainrotName)
-        if not G2L or not G2L["3e"] then
-            return
-        end
-        
-        local nameHolder = G2L["3e"]:FindFirstChild("NameHolder")
-        if nameHolder and not nameHolder.BrainrotName.Visible then
-            nameHolder.BrainrotName.Text = brainrotName
-            nameHolder.BrainrotName.Visible = true
-            nameHolder.Visible = true
-            nameHolder.BrainrotName.MouseButton1Click:Connect(function()
-                for i, name in ipairs(onlyJoinBrainrots) do
-                    if name == brainrotName then
-                        table.remove(onlyJoinBrainrots, i)
-                        nameHolder.BrainrotName.Visible = false
-                        nameHolder.Visible = false
-                        nameHolder.BrainrotName.Text = ""
-                        saveConfig() -- Save when removing
-                        break
-                    end
-                end
-                G2L["3e"].CanvasSize = UDim2.new(0, 0, 0, G2L["43"].AbsoluteContentSize.Y)
-            end)
-        else
-            local newNameHolder = nameHolder:Clone()
-            newNameHolder.Parent = G2L["3e"]
-            newNameHolder.Position = UDim2.new(0.5, 0, 0, 0)
-            newNameHolder.BrainrotName.Text = brainrotName
-            newNameHolder.BrainrotName.Visible = true
-            newNameHolder.BrainrotName.MouseButton1Click:Connect(function()
-                for i, name in ipairs(onlyJoinBrainrots) do
-                    if name == brainrotName then
-                        table.remove(onlyJoinBrainrots, i)
-                        newNameHolder:Destroy()
-                        saveConfig() -- Save when removing
-                        break
-                    end
-                end
-                G2L["3e"].CanvasSize = UDim2.new(0, 0, 0, G2L["43"].AbsoluteContentSize.Y)
-            end)
-        end
-        G2L["3e"].CanvasSize = UDim2.new(0, 0, 0, G2L["43"].AbsoluteContentSize.Y)
-    end
-
-    -- Helper function to recreate brainrot list items by searching (for loading)
-    local function recreateBrainrotListItemBySearch(brainrotList, brainrotName, brainrotType)
-        local targetList = onlyJoinBrainrots -- Always use the unified list
-        
-        local nameHolder = brainrotList:FindFirstChild("NameHolder")
-        if nameHolder then
-            if not nameHolder.BrainrotName.Visible then
-                nameHolder.BrainrotName.Text = brainrotName
-                nameHolder.BrainrotName.Visible = true
-                nameHolder.Visible = true
-                -- Set text color based on type
-                if brainrotType == "ignore" then
-                    nameHolder.BrainrotName.TextColor3 = Color3.fromRGB(255, 0, 0) -- Red for ignore
-                else
-                    nameHolder.BrainrotName.TextColor3 = Color3.fromRGB(0, 255, 0) -- Green for join
-                end
-                
-                nameHolder.BrainrotName.MouseButton1Click:Connect(function()
-                    for i, item in ipairs(targetList) do
-                        if item.name == brainrotName then
-                            table.remove(targetList, i)
-                            nameHolder.BrainrotName.Visible = false
-                            nameHolder.Visible = false
-                        nameHolder.Visible = false
-                            nameHolder.BrainrotName.Text = ""
-                            saveConfig() -- Save when removing
-                            break
-                        end
-                    end
-                    brainrotList.CanvasSize = UDim2.new(0, 0, 0, brainrotList.UIListLayout.AbsoluteContentSize.Y)
-                end)
-            else
-                local newNameHolder = nameHolder:Clone()
-                newNameHolder.Parent = brainrotList
-                newNameHolder.Position = UDim2.new(0.5, 0, 0, 0)
-                newNameHolder.BrainrotName.Text = brainrotName
-                newNameHolder.BrainrotName.Visible = true
-                -- Set text color based on type
-                if brainrotType == "ignore" then
-                    newNameHolder.BrainrotName.TextColor3 = Color3.fromRGB(255, 0, 0) -- Red for ignore
-                else
-                    newNameHolder.BrainrotName.TextColor3 = Color3.fromRGB(0, 255, 0) -- Green for join
-                end
-                
-                newNameHolder.BrainrotName.MouseButton1Click:Connect(function()
-                    for i, item in ipairs(targetList) do
-                        if item.name == brainrotName then
-                            table.remove(targetList, i)
-                            newNameHolder:Destroy()
-                            saveConfig() -- Save when removing
-                            break
-                        end
-                    end
-                    brainrotList.CanvasSize = UDim2.new(0, 0, 0, brainrotList.UIListLayout.AbsoluteContentSize.Y)
-                end)
-            end
-        else
-            -- Debug: list all children
-            for _, child in ipairs(brainrotList:GetChildren()) do
-            end
-            return
-        end
-        brainrotList.CanvasSize = UDim2.new(0, 0, 0, brainrotList.UIListLayout.AbsoluteContentSize.Y)
-    end
-
-    -- Helper function to apply loaded configuration by searching for GUI elements
-    local function applyLoadedConfigBySearch(mainFrame)
-        
-        -- Find MinGenerationContainer and update min generation text
-        local minGenContainer = mainFrame:FindFirstChild("MinGenerationContainer")
-        if minGenContainer then
-            local minGenInput = minGenContainer:FindFirstChild("MinGenInput")
-            if minGenInput then
-                minGenInput.Text = minGeneration
-            else
-            end
-        else
-        end
-        
-        -- Find generation filter toggle elements
-        if minGenContainer then
-            local toggleFrameGen = minGenContainer:FindFirstChild("ToggleFrameGen")
-            local toggleButton = toggleFrameGen and toggleFrameGen:FindFirstChild("Toggle")
-            
-            if toggleFrameGen and toggleButton then
-                if generationFilterEnabled then
-                    -- Set toggle to ON position (right side)
-                    toggleButton.Position = UDim2.new(0.79, 0, 0.5, 0)
-                    toggleFrameGen.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Green
-                else
-                    -- Set toggle to OFF position (left side)
-                    toggleButton.Position = UDim2.new(0.21, 0, 0.5, 0)
-                    toggleFrameGen.BackgroundColor3 = Color3.fromRGB(255, 70, 50) -- Red
-                end
-            else
-            end
-        end
-        
-        -- Find specific-rot join toggle elements
-        local joinByRotContainer = mainFrame:FindFirstChild("JoinByRotContainer")
-        if joinByRotContainer then
-            local toggleFrameGen = joinByRotContainer:FindFirstChild("ToggleFrameGen")
-            local toggleButton = toggleFrameGen and toggleFrameGen:FindFirstChild("Toggle")
-            
-            if toggleFrameGen and toggleButton then
-                if onlyJoinEnabled then
-                    -- Set toggle to ON position (right side)
-                    toggleButton.Position = UDim2.new(0.79, 0, 0.48, 0)
-                    toggleFrameGen.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Green
-                else
-                    -- Set toggle to OFF position (left side)
-                    toggleButton.Position = UDim2.new(0.21, 0, 0.48, 0)
-                    toggleFrameGen.BackgroundColor3 = Color3.fromRGB(255, 70, 50) -- Red
-                end
-            else
-            end
-            
-            -- Find brainrot list container and recreate items
-            local brainrotList = joinByRotContainer:FindFirstChild("ScrollingFrame")
-            if brainrotList then
-                for i, item in ipairs(onlyJoinBrainrots) do
-                    recreateBrainrotListItemBySearch(brainrotList, item.name, item.type)
-                end
-            else
-                -- Debug: list all children
-                for _, child in ipairs(joinByRotContainer:GetChildren()) do
-                end
-            end
-        else
-        end
-        
-    end
-
-    -- Apply configuration after GUI is created
-    local function applyConfigAfterGUI()
-        
-        -- Find the main GUI frame by searching for it
-        local mainFrame = nil
-        local attempts = 0
-        while not mainFrame and attempts < 50 do
-            task.wait(0.1)
-            attempts = attempts + 1
-            
-            -- Try to find the main frame in PlayerGui
-            local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-            if playerGui then
-                local screenGui = playerGui:FindFirstChild("AutoJoiner")
-                if screenGui then
-                    mainFrame = screenGui:FindFirstChild("Main")
-                    screenGui.ResetOnSpawn = false
-                end
-            end
-        end
-        
-        if mainFrame then
-            applyLoadedConfigBySearch(mainFrame)
-        else
-        end
-    end
-
-    -- Create GUI
-    local G2L = {};
-
-    -- StarterGui.AutoJoiner with safety check
-    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
-    if not PlayerGui then
-    end
-
-    G2L["1"] = Instance.new("ScreenGui", PlayerGui);
-    G2L["1"]["IgnoreGuiInset"] = true;
-    G2L["1"]["ScreenInsets"] = Enum.ScreenInsets.DeviceSafeInsets;
-    G2L["1"]["Name"] = [[AutoJoiner]];
-    G2L["1"]["ZIndexBehavior"] = Enum.ZIndexBehavior.Sibling;
-
-    -- Mobile UI scaling will be applied after main frame is created
-
-    -- Make GUI persist through character respawns/deaths (CRASH SAFE)
-    local CoreGui = game:GetService("CoreGui")
-    local guiStabilityCheck = true
-
-    -- Handle character added/removing for respawn persistence (IMPROVED)
-    LocalPlayer.CharacterAdded:Connect(function()
-        task.spawn(function()
-            task.wait(1.5) -- Wait for character to fully load
-            if G2L["1"] then
-                local success = pcall(function()
-                    G2L["1"].Parent = PlayerGui
-                    G2L["1"].Prefab = true
-                    G2L["1"].Enabled = true
-                end)
-                if success then
-                    addLogEntry("GUI restored after character respawn")
-                end
-                if not success then
-                    -- Retry after delay
-                    task.wait(2)
-                    pcall(function()
-                        G2L["1"].Parent = PlayerGui
-                        G2L["1"].Enabled = true
-                    end)
-                end
-            end
-        end)
+    togBtn.MouseButton1Click:Connect(function()
+        State.Toggle[fd.key] = not State.Toggle[fd.key]
+        local on = State.Toggle[fd.key]
+        Tween(knob, TweenInfo.new(0.2, Enum.EasingStyle.Quart),
+            { Position = on and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8),
+              BackgroundColor3 = on and fd.color or Color3.fromRGB(255, 255, 255) })
+        ShowNotif(on and "✓" or "✗",
+            fd.label .. (on and " enabled" or " disabled"),
+            on and "success" or "info")
     end)
+end
 
-    LocalPlayer.CharacterRemoving:Connect(function()
-        task.spawn(function()
-            task.wait(0.1) -- Small delay to ensure stability
-            if G2L["1"] then
-                local success = pcall(function()
-                    if G2L["1"].Parent == PlayerGui then
-                        G2L["1"].Parent = CoreGui -- Move to CoreGui to survive respawn
-                        G2L["1"].Enabled = true -- Keep enabled so it's still visible
-                    end
-                end)
-                -- Ensure GUI stays visible even after character removal
-                if not success then
-                    task.wait(1)
-                    pcall(function()
-                        if G2L["1"] then
-                            G2L["1"].Parent = CoreGui
-                            G2L["1"].Enabled = true
-                        end
-                    end)
-                end
-            end
-        end)
-    end)
+-- ────────────────────────────────────────────────────────
+--  TABs: MISC, PRIORITY, SETTINGS, CREDITS  (stubs)
+-- ────────────────────────────────────────────────────────
+for _, label in ipairs({ "Misc", "Priority", "Settings", "Credits" }) do
+    local tab = New("Frame", {
+        Size             = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Visible          = false,
+    }, tabViewport)
+    tabContents[label] = tab
 
-    -- SAFE Backup: Move GUI to CoreGui on any character change (with error handling)
-    task.spawn(function()
-        while isScriptRunning do
-            task.wait(3) -- Reduced frequency to prevent crashes
-            
-            if guiStabilityCheck then
-                local success = pcall(function()
-                    if G2L["1"] and not LocalPlayer.Character then
-                        -- Character is dead/respawning, preserve GUI
-                        if G2L["1"].Parent == PlayerGui then
-                            G2L["1"].Parent = CoreGui
-                        end
-                    elseif G2L["1"] and LocalPlayer.Character and G2L["1"].Parent == CoreGui then
-                        -- Character is back, move to PlayerGui
-                        G2L["1"].Parent = PlayerGui
-                        G2L["1"].Enabled = true
-                    end
-                end)
-                
-                if not success then
-                    guiStabilityCheck = false
-                    task.wait(2)
-                    guiStabilityCheck = true
-                end
-            end
+    New("TextLabel", {
+        Position              = UDim2.new(0.5, 0, 0.5, -12),
+        AnchorPoint           = Vector2.new(0.5, 0.5),
+        Size                  = UDim2.new(0.8, 0, 0, 24),
+        BackgroundTransparency = 1,
+        Text                  = label .. " — coming soon",
+        TextColor3            = T.TextDim,
+        Font                  = Enum.Font.GothamMedium,
+        TextSize              = 14,
+    }, tab)
+end
+
+-- initialise to Brainrots
+SelectTab("Brainrots")
+
+-- ── Toggle-hub button (floating corner) ────────────────
+local hubToggleBtn = New("TextButton", {
+    Position              = UDim2.new(1, -70, 0, 15),
+    Size                  = UDim2.new(0, 55, 0, 55),
+    BackgroundColor3      = T.Purple,
+    BackgroundTransparency = 0.2,
+    Text                  = ";)",
+    TextColor3            = Color3.fromRGB(255, 255, 255),
+    Font                  = Enum.Font.GothamBold,
+    TextSize              = 24,
+    ZIndex                = 50,
+    BorderSizePixel       = 0,
+}, HubGui)
+Round(hubToggleBtn, 14)
+Stroke(hubToggleBtn, T.Cyan, 1.5, 0.5)
+New("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, T.Purple),
+        ColorSequenceKeypoint.new(1, T.Cyan),
+    }),
+}, hubToggleBtn)
+New("UIScale", {}, hubToggleBtn)
+
+hubToggleBtn.MouseButton1Click:Connect(function()
+    State.HubVisible = not State.HubVisible
+    mainWin.Visible  = State.HubVisible
+    titleBar.Visible = State.HubVisible
+end)
+
+-- Drag logic for main window
+do
+    local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
+    mainWin.InputBegan:Connect(function(io)
+        if io.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging  = true
+            dragStart = io.Position
+            startPos  = mainWin.Position
         end
     end)
-
-    -- StarterGui.AutoJoiner.Main
-    G2L["2"] = Instance.new("Frame", G2L["1"]);
-    G2L["2"]["BorderSizePixel"] = 0;
-    G2L["2"]["BackgroundColor3"] = Color3.fromRGB(34, 35, 35);
-    G2L["2"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["2"]["Size"] = UDim2.new(0.35938, 0, 0.41953, 0);
-    G2L["2"]["Position"] = UDim2.new(0.49991, 0, 0.49981, 0);
-    G2L["2"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["2"]["Name"] = [[Main]];
-    G2L["2"]["Draggable"] = true;
-
-    -- Scale main frame for mobile devices (1.25x bigger)
-    if isMobile then
-        G2L["2"]["Size"] = UDim2.new(0.44923, 0, 0.52441, 0) -- 0.35938 * 1.25 = 0.44923, 0.41953 * 1.25 = 0.52441
-        -- Keep position centered
-    end
-
-    -- Create Open Button (mobile-friendly)
-    local OpenButton = Instance.new("TextButton", G2L["1"])
-    OpenButton.Name = "OpenButton"
-    OpenButton.TextWrapped = true
-    OpenButton.BorderSizePixel = 0
-    OpenButton.TextSize = 14
-    OpenButton.TextScaled = true
-    OpenButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    OpenButton.BackgroundColor3 = Color3.fromRGB(35, 36, 36)
-    OpenButton.FontFace = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Heavy, Enum.FontStyle.Normal)
-    OpenButton.AnchorPoint = Vector2.new(0.5, 0.5)
-    OpenButton.Size = UDim2.new(0.17279, 0, 0.06218, 0)
-    OpenButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
-    OpenButton.Text = "Open Auto Joiner (T)"
-    OpenButton.Position = UDim2.new(0.5064, 0, 0.11422, 0)
-
-    -- Add corner to match design
-    local OpenButtonCorner = Instance.new("UICorner", OpenButton)
-    local OpenButtonAspectRatio = Instance.new("UIAspectRatioConstraint", OpenButton)
-    OpenButtonAspectRatio.AspectRatio = 5.08108
-
-    -- Hide main frame initially, show only open button
-    G2L["2"].Visible = false
-
-    -- StarterGui.AutoJoiner.Main.ValueBar
-    G2L["3"] = Instance.new("Frame", G2L["2"]);
-    G2L["3"]["ZIndex"] = 2;
-    G2L["3"]["BorderSizePixel"] = 0;
-    G2L["3"]["BackgroundColor3"] = Color3.fromRGB(31, 31, 31);
-    G2L["3"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["3"]["Size"] = UDim2.new(0.62044, 0, 0.04125, 0);
-    G2L["3"]["Position"] = UDim2.new(0.66063, 0, 0.06847, 0);
-    G2L["3"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["3"]["Name"] = [[ValueBar]];
-
-    -- StarterGui.AutoJoiner.Main.ValueBar.Brainrot
-    G2L["4"] = Instance.new("TextLabel", G2L["3"]);
-    G2L["4"]["TextWrapped"] = true;
-    G2L["4"]["ZIndex"] = 2;
-    G2L["4"]["BorderSizePixel"] = 0;
-    G2L["4"]["TextSize"] = 12;
-    G2L["4"]["TextXAlignment"] = Enum.TextXAlignment.Left;
-    G2L["4"]["TextScaled"] = true;
-    G2L["4"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["4"]["FontFace"] = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Heavy, Enum.FontStyle.Normal);
-    G2L["4"]["TextColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["4"]["BackgroundTransparency"] = 1;
-    G2L["4"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["4"]["Size"] = UDim2.new(0.17606, 0, 1.80273, 0);
-    G2L["4"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["4"]["Text"] = [[Brainrot]];
-    G2L["4"]["Name"] = [[Brainrot]];
-    G2L["4"]["Position"] = UDim2.new(0.14381, 0, -0.00385, 0);
-
-    -- StarterGui.AutoJoiner.Main.ValueBar.Brainrot.UITextSizeConstraint
-    G2L["5"] = Instance.new("UITextSizeConstraint", G2L["4"]);
-    G2L["5"]["MaxTextSize"] = 12;
-
-    -- StarterGui.AutoJoiner.Main.ValueBar.Players
-    G2L["6"] = Instance.new("TextLabel", G2L["3"]);
-    G2L["6"]["TextWrapped"] = true;
-    G2L["6"]["ZIndex"] = 2;
-    G2L["6"]["BorderSizePixel"] = 0;
-    G2L["6"]["TextSize"] = 12;
-    G2L["6"]["TextXAlignment"] = Enum.TextXAlignment.Left;
-    G2L["6"]["TextScaled"] = true;
-    G2L["6"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["6"]["FontFace"] = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Heavy, Enum.FontStyle.Normal);
-    G2L["6"]["TextColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["6"]["BackgroundTransparency"] = 1;
-    G2L["6"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["6"]["Size"] = UDim2.new(0.15791, 0, 1.80266, 0);
-    G2L["6"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["6"]["Text"] = [[Players]];
-    G2L["6"]["Name"] = [[Players]];
-    G2L["6"]["Position"] = UDim2.new(0.54637, 0, -0.00382, 0);
-
-    -- StarterGui.AutoJoiner.Main.ValueBar.Players.UITextSizeConstraint
-    G2L["7"] = Instance.new("UITextSizeConstraint", G2L["6"]);
-    G2L["7"]["MaxTextSize"] = 12;
-
-    -- StarterGui.AutoJoiner.Main.ValueBar.Timestamp
-    G2L["8"] = Instance.new("TextLabel", G2L["3"]);
-    G2L["8"]["TextWrapped"] = true;
-    G2L["8"]["ZIndex"] = 2;
-    G2L["8"]["BorderSizePixel"] = 0;
-    G2L["8"]["TextSize"] = 12;
-    G2L["8"]["TextXAlignment"] = Enum.TextXAlignment.Left;
-    G2L["8"]["TextScaled"] = true;
-    G2L["8"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["8"]["FontFace"] = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Heavy, Enum.FontStyle.Normal);
-    G2L["8"]["TextColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["8"]["BackgroundTransparency"] = 1;
-    G2L["8"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["8"]["Size"] = UDim2.new(0.18004, 0, 1.80266, 0);
-    G2L["8"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["8"]["Text"] = [[Stamp]];
-    G2L["8"]["Name"] = [[Timestamp]];
-    G2L["8"]["Position"] = UDim2.new(0.75, 0, -0.00382, 0);
-
-    -- StarterGui.AutoJoiner.Main.ValueBar.Timestamp.UITextSizeConstraint
-    G2L["9"] = Instance.new("UITextSizeConstraint", G2L["8"]);
-    G2L["9"]["MaxTextSize"] = 12;
-
-    -- StarterGui.AutoJoiner.Main.MainScrollFrame
-    G2L["a"] = Instance.new("ScrollingFrame", G2L["2"]);
-    G2L["a"]["Active"] = true;
-    G2L["a"]["ZIndex"] = 2;
-    G2L["a"]["BorderSizePixel"] = 0;
-    G2L["a"]["TopImage"] = [[]];
-    G2L["a"]["MidImage"] = [[]];
-    G2L["a"]["BackgroundColor3"] = Color3.fromRGB(39, 39, 39);
-    G2L["a"]["Name"] = [[MainScrollFrame]];
-    G2L["a"]["BottomImage"] = [[]];
-    G2L["a"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["a"]["Size"] = UDim2.new(0.62044, 0, 0.55382, 0);
-    G2L["a"]["ScrollBarImageColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["a"]["Position"] = UDim2.new(0.65228, 0, 0.36178, 0);
-    G2L["a"]["BorderColor3"] = Color3.fromRGB(28, 43, 54);
-    G2L["a"]["ScrollBarThickness"] = 6;
-    G2L["a"]["ScrollBarImageTransparency"] = 0.3;
-
-    -- StarterGui.AutoJoiner.Main.MainScrollFrame.UIListLayout
-    G2L["b"] = Instance.new("UIListLayout", G2L["a"]);
-    G2L["b"]["SortOrder"] = Enum.SortOrder.LayoutOrder;
-    G2L["b"]["Padding"] = UDim.new(0, 2);
-
-    -- StarterGui.AutoJoiner.Main.MainScrollFrame.FindInfo
-    G2L["c"] = Instance.new("Frame", G2L["a"]);
-    G2L["c"]["Visible"] = false;
-    G2L["c"]["BorderSizePixel"] = 0;
-    G2L["c"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["c"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["c"]["Size"] = UDim2.new(1.006, 0, 0, 20);
-    G2L["c"]["Position"] = UDim2.new(0.5, 0, 0.5, 0);
-    G2L["c"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["c"]["Name"] = [[FindInfo]];
-    G2L["c"]["BackgroundTransparency"] = 0.85;
-
-    -- StarterGui.AutoJoiner.Main.MainScrollFrame.FindInfo.RotName
-    G2L["d"] = Instance.new("TextLabel", G2L["c"]);
-    G2L["d"]["TextWrapped"] = true;
-    G2L["d"]["BorderSizePixel"] = 0;
-    G2L["d"]["TextSize"] = 12;
-    G2L["d"]["TextXAlignment"] = Enum.TextXAlignment.Left;
-    G2L["d"]["TextScaled"] = true;
-    G2L["d"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["d"]["FontFace"] = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Bold, Enum.FontStyle.Normal);
-    G2L["d"]["TextColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["d"]["BackgroundTransparency"] = 1;
-    G2L["d"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["d"]["Size"] = UDim2.new(0.424, 0, 0.647, 0);
-    G2L["d"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["d"]["Text"] = [[Auto-Join Rots]];
-    G2L["d"]["Name"] = [[RotName]];
-    G2L["d"]["Position"] = UDim2.new(0.268, 0, 0.5, 0);
-
-    -- StarterGui.AutoJoiner.Main.MainScrollFrame.FindInfo.RotName.UITextSizeConstraint
-    G2L["e"] = Instance.new("UITextSizeConstraint", G2L["d"]);
-    G2L["e"]["MaxTextSize"] = 12;
-
-    -- StarterGui.AutoJoiner.Main.MainScrollFrame.FindInfo.RotPlayers
-    G2L["f"] = Instance.new("TextLabel", G2L["c"]);
-    G2L["f"]["TextWrapped"] = true;
-    G2L["f"]["BorderSizePixel"] = 0;
-    G2L["f"]["TextSize"] = 15;
-    G2L["f"]["TextXAlignment"] = Enum.TextXAlignment.Left;
-    G2L["f"]["TextScaled"] = true;
-    G2L["f"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["f"]["FontFace"] = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
-    G2L["f"]["TextColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["f"]["BackgroundTransparency"] = 1;
-    G2L["f"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["f"]["Size"] = UDim2.new(0.065, 0, 1.04934, 0);
-    G2L["f"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["f"]["Text"] = [[8/8]];
-    G2L["f"]["Name"] = [[RotPlayers]];
-    G2L["f"]["Position"] = UDim2.new(0.557, 0, 0.5, 0);
-
-    -- StarterGui.AutoJoiner.Main.MainScrollFrame.FindInfo.RotPlayers.UITextSizeConstraint
-    G2L["10"] = Instance.new("UITextSizeConstraint", G2L["f"]);
-    G2L["10"]["MaxTextSize"] = 12;
-
-    -- StarterGui.AutoJoiner.Main.MainScrollFrame.FindInfo.Timestamp
-    G2L["11"] = Instance.new("TextLabel", G2L["c"]);
-    G2L["11"]["TextWrapped"] = true;
-    G2L["11"]["BorderSizePixel"] = 0;
-    G2L["11"]["TextSize"] = 12;
-    G2L["11"]["TextXAlignment"] = Enum.TextXAlignment.Left;
-    G2L["11"]["TextScaled"] = true;
-    G2L["11"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["11"]["FontFace"] = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
-    G2L["11"]["TextColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["11"]["BackgroundTransparency"] = 1;
-    G2L["11"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["11"]["Size"] = UDim2.new(0.16268, 0, 1.04934, 0);
-    G2L["11"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["11"]["Text"] = [[12:67:00]];
-    G2L["11"]["Name"] = [[Timestamp]];
-    G2L["11"]["Position"] = UDim2.new(0.75, 0, 0.5, 0);
-
-    -- StarterGui.AutoJoiner.Main.MainScrollFrame.FindInfo.Timestamp.UITextSizeConstraint
-    G2L["12"] = Instance.new("UITextSizeConstraint", G2L["11"]);
-    G2L["12"]["MaxTextSize"] = 12;
-
-    -- StarterGui.AutoJoiner.Main.StopButton
-    G2L["13"] = Instance.new("TextButton", G2L["2"]);
-    G2L["13"]["TextWrapped"] = true;
-    G2L["13"]["BorderSizePixel"] = 0;
-    G2L["13"]["TextSize"] = 14;
-    G2L["13"]["TextScaled"] = true;
-    G2L["13"]["TextColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["13"]["BackgroundColor3"] = Color3.fromRGB(128, 128, 128);
-    G2L["13"]["FontFace"] = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Bold, Enum.FontStyle.Normal);
-    G2L["13"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["13"]["Size"] = UDim2.new(0.24553, 0, 0.07799, 0);
-    G2L["13"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["13"]["Text"] = [[Stop]];
-    G2L["13"]["Name"] = [[StopButton]];
-    G2L["13"]["Position"] = UDim2.new(0.17985, 0, 0.17735, 0);
-
-    -- StarterGui.AutoJoiner.Main.StopButton.UICorner
-    G2L["14"] = Instance.new("UICorner", G2L["13"]);
-    G2L["14"]["CornerRadius"] = UDim.new(0.35, 0);
-
-    -- StarterGui.AutoJoiner.Main.StopButton.UITextSizeConstraint
-    G2L["15"] = Instance.new("UITextSizeConstraint", G2L["13"]);
-    G2L["15"]["MaxTextSize"] = 14;
-
-    -- StarterGui.AutoJoiner.Main.RunButton
-    G2L["16"] = Instance.new("TextButton", G2L["2"]);
-    G2L["16"]["TextWrapped"] = true;
-    G2L["16"]["BorderSizePixel"] = 0;
-    G2L["16"]["TextSize"] = 14;
-    G2L["16"]["TextScaled"] = true;
-    G2L["16"]["TextColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["16"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["16"]["FontFace"] = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Bold, Enum.FontStyle.Normal);
-    G2L["16"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["16"]["Size"] = UDim2.new(0.24553, 0, 0.07799, 0);
-    G2L["16"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["16"]["Text"] = [[Run]];
-    G2L["16"]["Name"] = [[RunButton]];
-    G2L["16"]["Position"] = UDim2.new(0.17985, 0, 0.07123, 0);
-
-    -- StarterGui.AutoJoiner.Main.RunButton.UICorner
-    G2L["17"] = Instance.new("UICorner", G2L["16"]);
-    G2L["17"]["CornerRadius"] = UDim.new(0.35, 0);
-
-    -- StarterGui.AutoJoiner.Main.RunButton.UITextSizeConstraint
-    G2L["18"] = Instance.new("UITextSizeConstraint", G2L["16"]);
-    G2L["18"]["MaxTextSize"] = 14;
-
-    -- StarterGui.AutoJoiner.Main.AddButon
-    G2L["19"] = Instance.new("TextButton", G2L["2"]);
-    G2L["19"]["TextWrapped"] = true;
-    G2L["19"]["BorderSizePixel"] = 0;
-    G2L["19"]["TextSize"] = 14;
-    G2L["19"]["TextScaled"] = true;
-    G2L["19"]["TextColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["19"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["19"]["FontFace"] = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Bold, Enum.FontStyle.Normal);
-    G2L["19"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["19"]["Size"] = UDim2.new(0.23477, 0, 0.06181, 0);
-    G2L["19"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["19"]["Text"] = [[Add]];
-    G2L["19"]["Name"] = [[AddButon]];
-    G2L["19"]["Position"] = UDim2.new(0.18034, 0, 0.70349, 0);
-
-    -- StarterGui.AutoJoiner.Main.AddButon.UICorner
-    G2L["1a"] = Instance.new("UICorner", G2L["19"]);
-    G2L["1a"]["CornerRadius"] = UDim.new(0.35, 0);
-
-    -- StarterGui.AutoJoiner.Main.AddButon.UITextSizeConstraint
-    G2L["1b"] = Instance.new("UITextSizeConstraint", G2L["19"]);
-    G2L["1b"]["MaxTextSize"] = 14;
-
-    -- StarterGui.AutoJoiner.Main.HeaderFrame
-    G2L["1c"] = Instance.new("Frame", G2L["2"]);
-    G2L["1c"]["BorderSizePixel"] = 0;
-    G2L["1c"]["BackgroundColor3"] = Color3.fromRGB(31, 31, 31);
-    G2L["1c"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["1c"]["Size"] = UDim2.new(-1, 0, -0.07964, 0);
-    G2L["1c"]["Position"] = UDim2.new(0.5, 0, -0.04013, 0);
-    G2L["1c"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["1c"]["Name"] = [[HeaderFrame]];
-
-    -- StarterGui.AutoJoiner.Main.HeaderFrame.AutoJoinerText
-    G2L["1d"] = Instance.new("TextLabel", G2L["1c"]);
-    G2L["1d"]["TextWrapped"] = true;
-    G2L["1d"]["ZIndex"] = 2;
-    G2L["1d"]["BorderSizePixel"] = 0;
-    G2L["1d"]["TextSize"] = 15;
-    G2L["1d"]["TextXAlignment"] = Enum.TextXAlignment.Left;
-    G2L["1d"]["TextScaled"] = true;
-    G2L["1d"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["1d"]["FontFace"] = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Bold, Enum.FontStyle.Normal);
-    G2L["1d"]["TextColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["1d"]["BackgroundTransparency"] = 1;
-    G2L["1d"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["1d"]["Size"] = UDim2.new(0.26729, 0, 0.64286, 0);
-    G2L["1d"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["1d"]["Text"] = [[Puzzle Auto Joiner]];
-    G2L["1d"]["Name"] = [[AutoJoinerText]];
-    G2L["1d"]["Position"] = UDim2.new(0.19587, 0, 0.51908, 0);
-
-    -- StarterGui.AutoJoiner.Main.HeaderFrame.AutoJoinerText.UITextSizeConstraint
-    G2L["1e"] = Instance.new("UITextSizeConstraint", G2L["1d"]);
-    G2L["1e"]["MaxTextSize"] = 18;
-
-    -- StarterGui.AutoJoiner.Main.HeaderFrame.Close
-    G2L["1f"] = Instance.new("TextButton", G2L["1c"]);
-    G2L["1f"]["TextWrapped"] = true;
-    G2L["1f"]["BorderSizePixel"] = 0;
-    G2L["1f"]["TextSize"] = 17;
-    G2L["1f"]["TextScaled"] = true;
-    G2L["1f"]["TextColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["1f"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["1f"]["FontFace"] = Font.new([[rbxasset://fonts/families/Arial.json]], Enum.FontWeight.Bold, Enum.FontStyle.Normal);
-    G2L["1f"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["1f"]["BackgroundTransparency"] = 1;
-    G2L["1f"]["Size"] = UDim2.new(-0.07143, 0, -0.57143, 0);
-    G2L["1f"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["1f"]["Text"] = [[X]];
-    G2L["1f"]["Name"] = [[Close]];
-    G2L["1f"]["Position"] = UDim2.new(0.96484, 0, 0.50698, 0);
-
-    -- StarterGui.AutoJoiner.Main.HeaderFrame.Close.UITextSizeConstraint
-    G2L["20"] = Instance.new("UITextSizeConstraint", G2L["1f"]);
-    G2L["20"]["MaxTextSize"] = 17;
-
-    -- StarterGui.AutoJoiner.Main.HeaderFrame.StatusImage
-    G2L["21"] = Instance.new("ImageLabel", G2L["1c"]);
-    G2L["21"]["ZIndex"] = 2;
-    G2L["21"]["BorderSizePixel"] = 0;
-    G2L["21"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["21"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["21"]["Image"] = [[rbxassetid://118672789412763]];
-    G2L["21"]["Size"] = UDim2.new(-0.0337, 0, -0.67394, 0);
-    G2L["21"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["21"]["BackgroundTransparency"] = 1;
-    G2L["21"]["Name"] = [[StatusImage]];
-    G2L["21"]["Position"] = UDim2.new(0.04064, 0, 0.52232, 0);
-
-    -- StarterGui.AutoJoiner.Main.HeaderFrame.Minimize
-    G2L["22"] = Instance.new("TextButton", G2L["1c"]);
-    G2L["22"]["TextWrapped"] = true;
-    G2L["22"]["BorderSizePixel"] = 0;
-    G2L["22"]["TextSize"] = 25;
-    G2L["22"]["TextScaled"] = true;
-    G2L["22"]["TextColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["22"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["22"]["FontFace"] = Font.new([[rbxasset://fonts/families/Arial.json]], Enum.FontWeight.Bold, Enum.FontStyle.Normal);
-    G2L["22"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["22"]["BackgroundTransparency"] = 1;
-    G2L["22"]["Size"] = UDim2.new(-0.07143, 0, -0.57143, 0);
-    G2L["22"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["22"]["Text"] = [[─]];
-    G2L["22"]["Name"] = [[Minimize]];
-    G2L["22"]["Position"] = UDim2.new(0.92656, 0, 0.50698, 0);
-
-    -- StarterGui.AutoJoiner.Main.HeaderFrame.Minimize.UITextSizeConstraint
-    G2L["23"] = Instance.new("UITextSizeConstraint", G2L["22"]);
-    G2L["23"]["MaxTextSize"] = 25;
-
-    -- StarterGui.AutoJoiner.Main.ConsoleContainer
-    G2L["24"] = Instance.new("Frame", G2L["2"]);
-    G2L["24"]["BorderSizePixel"] = 0;
-    G2L["24"]["BackgroundColor3"] = Color3.fromRGB(31, 31, 31);
-    G2L["24"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["24"]["Size"] = UDim2.new(0.61866, 0, 0.25999, 0);
-    G2L["24"]["Position"] = UDim2.new(0.65028, 0, 0.80426, 0);
-    G2L["24"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["24"]["Name"] = [[ConsoleContainer]];
-
-    -- StarterGui.AutoJoiner.Main.ConsoleContainer.Brainrot
-    G2L["25"] = Instance.new("TextLabel", G2L["24"]);
-    G2L["25"]["TextWrapped"] = true;
-    G2L["25"]["ZIndex"] = 2;
-    G2L["25"]["BorderSizePixel"] = 0;
-    G2L["25"]["TextSize"] = 12;
-    G2L["25"]["TextXAlignment"] = Enum.TextXAlignment.Left;
-    G2L["25"]["TextScaled"] = true;
-    G2L["25"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["25"]["FontFace"] = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Heavy, Enum.FontStyle.Normal);
-    G2L["25"]["TextColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["25"]["BackgroundTransparency"] = 1;
-    G2L["25"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["25"]["Size"] = UDim2.new(0.30367, 0, 0.22993, 0);
-    G2L["25"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["25"]["Text"] = [[Console Log]];
-    G2L["25"]["Name"] = [[Brainrot]];
-    G2L["25"]["Position"] = UDim2.new(0.16986, 0, 0.06497, 0);
-
-    -- StarterGui.AutoJoiner.Main.ConsoleContainer.Brainrot.UITextSizeConstraint
-    G2L["26"] = Instance.new("UITextSizeConstraint", G2L["25"]);
-    G2L["26"]["MaxTextSize"] = 12;
-
-    -- StarterGui.AutoJoiner.Main.ConsoleContainer.MainScrollFrame
-    G2L["27"] = Instance.new("ScrollingFrame", G2L["24"]);
-    G2L["27"]["Active"] = true;
-    G2L["27"]["ZIndex"] = 2;
-    G2L["27"]["BorderSizePixel"] = 0;
-    G2L["27"]["TopImage"] = [[]];
-    G2L["27"]["MidImage"] = [[]];
-    G2L["27"]["BackgroundColor3"] = Color3.fromRGB(39, 39, 39);
-    G2L["27"]["Name"] = [[MainScrollFrame]];
-    G2L["27"]["BottomImage"] = [[]];
-    G2L["27"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["27"]["Size"] = UDim2.new(0.94613, 0, 0.72661, 0);
-    G2L["27"]["ScrollBarImageColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["27"]["Position"] = UDim2.new(0.49356, 0, 0.54323, 0);
-    G2L["27"]["BorderColor3"] = Color3.fromRGB(28, 43, 54);
-    G2L["27"]["ScrollBarThickness"] = 6;
-    G2L["27"]["ScrollBarImageTransparency"] = 0.3;
-
-    -- StarterGui.AutoJoiner.Main.ConsoleContainer.MainScrollFrame.UIListLayout
-    G2L["28"] = Instance.new("UIListLayout", G2L["27"]);
-    G2L["28"]["SortOrder"] = Enum.SortOrder.LayoutOrder;
-    G2L["28"]["Padding"] = UDim.new(0, 2);
-
-    -- StarterGui.AutoJoiner.Main.ConsoleContainer.MainScrollFrame.FindInfo
-    G2L["29"] = Instance.new("Frame", G2L["27"]);
-    G2L["29"]["BorderSizePixel"] = 0;
-    G2L["29"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["29"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["29"]["Size"] = UDim2.new(1.006, 0, 0, 15);
-    G2L["29"]["Position"] = UDim2.new(0.5, 0, 0.5, 0);
-    G2L["29"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["29"]["Name"] = [[FindInfo]];
-    G2L["29"]["BackgroundTransparency"] = 1;
-
-    -- StarterGui.AutoJoiner.Main.ConsoleContainer.MainScrollFrame.FindInfo.LogName
-    G2L["2a"] = Instance.new("TextLabel", G2L["29"]);
-    G2L["2a"]["TextWrapped"] = true;
-    G2L["2a"]["BorderSizePixel"] = 0;
-    G2L["2a"]["TextSize"] = 12;
-    G2L["2a"]["TextXAlignment"] = Enum.TextXAlignment.Left;
-    G2L["2a"]["TextScaled"] = true;
-    G2L["2a"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["2a"]["FontFace"] = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Bold, Enum.FontStyle.Normal);
-    G2L["2a"]["TextColor3"] = Color3.fromRGB(91, 255, 127);
-    G2L["2a"]["BackgroundTransparency"] = 1;
-    G2L["2a"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["2a"]["Size"] = UDim2.new(0.97933, 0, 0.95558, 0);
-    G2L["2a"]["Visible"] = false;
-    G2L["2a"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["2a"]["Text"] = [[[12:67:00] Auto joiner active]];
-    G2L["2a"]["Name"] = [[LogName]];
-    G2L["2a"]["Position"] = UDim2.new(0.50437, 0, 0.44502, 0);
-
-    -- StarterGui.AutoJoiner.Main.ConsoleContainer.MainScrollFrame.FindInfo.LogName.UITextSizeConstraint
-    G2L["2b"] = Instance.new("UITextSizeConstraint", G2L["2a"]);
-    G2L["2b"]["MaxTextSize"] = 12;
-
-    -- StarterGui.AutoJoiner.Main.UIAspectRatioConstraint
-    G2L["2c"] = Instance.new("UIAspectRatioConstraint", G2L["2"]);
-    G2L["2c"]["AspectRatio"] = 1.8382;
-
-    -- StarterGui.AutoJoiner.Main.MinGenerationContainer
-    G2L["2d"] = Instance.new("Frame", G2L["2"]);
-    G2L["2d"]["BorderSizePixel"] = 0;
-    G2L["2d"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["2d"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["2d"]["Size"] = UDim2.new(0.30211, 0, 0.13667, 0);
-    G2L["2d"]["Position"] = UDim2.new(0.17485, 0, 0.8578, 0);
-    G2L["2d"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["2d"]["Name"] = [[MinGenerationContainer]];
-    G2L["2d"]["BackgroundTransparency"] = 1;
-
-    -- StarterGui.AutoJoiner.Main.MinGenerationContainer.MinGen
-    G2L["2e"] = Instance.new("TextLabel", G2L["2d"]);
-    G2L["2e"]["TextWrapped"] = true;
-    G2L["2e"]["ZIndex"] = 2;
-    G2L["2e"]["BorderSizePixel"] = 0;
-    G2L["2e"]["TextSize"] = 14;
-    G2L["2e"]["TextXAlignment"] = Enum.TextXAlignment.Left;
-    G2L["2e"]["TextScaled"] = true;
-    G2L["2e"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["2e"]["FontFace"] = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Heavy, Enum.FontStyle.Normal);
-    G2L["2e"]["TextColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["2e"]["BackgroundTransparency"] = 1;
-    G2L["2e"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["2e"]["Size"] = UDim2.new(0.53447, 0, 0.29773, 0);
-    G2L["2e"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["2e"]["Text"] = [[Min. Generation]];
-    G2L["2e"]["Name"] = [[MinGen]];
-    G2L["2e"]["Position"] = UDim2.new(0.29689, 0, 0.07165, 0);
-
-    -- StarterGui.AutoJoiner.Main.MinGenerationContainer.MinGen.UITextSizeConstraint
-    G2L["2f"] = Instance.new("UITextSizeConstraint", G2L["2e"]);
-    G2L["2f"]["MaxTextSize"] = 14;
-
-    -- StarterGui.AutoJoiner.Main.MinGenerationContainer.MinGenInput
-    G2L["30"] = Instance.new("TextBox", G2L["2d"]);
-    G2L["30"]["Name"] = [[MinGenInput]];
-    G2L["30"]["BorderSizePixel"] = 0;
-    G2L["30"]["TextWrapped"] = true;
-    G2L["30"]["TextSize"] = 14;
-    G2L["30"]["TextColor3"] = Color3.fromRGB(185, 187, 187);
-    G2L["30"]["TextScaled"] = true;
-    G2L["30"]["BackgroundColor3"] = Color3.fromRGB(39, 39, 39);
-    G2L["30"]["FontFace"] = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
-    G2L["30"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["30"]["PlaceholderText"] = [[1M]];
-    G2L["30"]["Size"] = UDim2.new(0.92568, 0, 0.42144, 0);
-    G2L["30"]["Position"] = UDim2.new(0.51393, 0, 0.7478, 0);
-    G2L["30"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["30"]["Text"] = [[]];
-
-    -- StarterGui.AutoJoiner.Main.MinGenerationContainer.MinGenInput.UIStroke
-    G2L["31"] = Instance.new("UIStroke", G2L["30"]);
-    G2L["31"]["Transparency"] = 0.76;
-    G2L["31"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
-    G2L["31"]["Color"] = Color3.fromRGB(255, 255, 255);
-
-    -- StarterGui.AutoJoiner.Main.MinGenerationContainer.MinGenInput.UITextSizeConstraint
-    G2L["32"] = Instance.new("UITextSizeConstraint", G2L["30"]);
-    G2L["32"]["MaxTextSize"] = 14;
-
-    -- StarterGui.AutoJoiner.Main.MinGenerationContainer.ToggleFrameGen
-    G2L["33"] = Instance.new("Frame", G2L["2d"]);
-    G2L["33"]["BorderSizePixel"] = 0;
-    G2L["33"]["BackgroundColor3"] = Color3.fromRGB(255, 70, 50);
-    G2L["33"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["33"]["Size"] = UDim2.new(0.25846, 0, 0.29773, 0);
-    G2L["33"]["Position"] = UDim2.new(0.84753, 0, 0.07166, 0);
-    G2L["33"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["33"]["Name"] = [[ToggleFrameGen]];
-
-    -- StarterGui.AutoJoiner.Main.MinGenerationContainer.ToggleFrameGen.UICorner
-    G2L["34"] = Instance.new("UICorner", G2L["33"]);
-    G2L["34"]["CornerRadius"] = UDim.new(0.35, 0);
-
-    -- StarterGui.AutoJoiner.Main.MinGenerationContainer.ToggleFrameGen.Toggle
-    G2L["35"] = Instance.new("TextButton", G2L["33"]);
-    G2L["35"]["TextWrapped"] = true;
-    G2L["35"]["BorderSizePixel"] = 0;
-    G2L["35"]["TextSize"] = 14;
-    G2L["35"]["TextScaled"] = true;
-    G2L["35"]["TextColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["35"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["35"]["FontFace"] = Font.new([[rbxasset://fonts/families/SourceSansPro.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
-    G2L["35"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["35"]["Size"] = UDim2.new(0.42105, 0, 1, 0);
-    G2L["35"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["35"]["Text"] = [[]];
-    G2L["35"]["Name"] = [[Toggle]];
-    G2L["35"]["Position"] = UDim2.new(0.20924, 0, 0.47513, 0);
-
-    -- StarterGui.AutoJoiner.Main.MinGenerationContainer.ToggleFrameGen.Toggle.UICorner
-    G2L["36"] = Instance.new("UICorner", G2L["35"]);
-    G2L["36"]["CornerRadius"] = UDim.new(0.22, 0);
-
-    -- StarterGui.AutoJoiner.Main.MinGenerationContainer.ToggleFrameGen.Toggle.UITextSizeConstraint
-    G2L["37"] = Instance.new("UITextSizeConstraint", G2L["35"]);
-    G2L["37"]["MaxTextSize"] = 14;
-
-    -- StarterGui.AutoJoiner.Main.MinGenerationContainer.UIAspectRatioConstraint
-    G2L["38"] = Instance.new("UIAspectRatioConstraint", G2L["2d"]);
-    G2L["38"]["AspectRatio"] = 4.06332;
-
-    -- StarterGui.AutoJoiner.Main.StrokeFrame
-    G2L["39"] = Instance.new("Frame", G2L["2"]);
-    G2L["39"]["BorderSizePixel"] = 0;
-    G2L["39"]["BackgroundColor3"] = Color3.fromRGB(46, 47, 47);
-    G2L["39"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["39"]["Size"] = UDim2.new(0.62879, 0, 0.6554, 0);
-    G2L["39"]["Position"] = UDim2.new(0.65645, 0, 0.3277, 0);
-    G2L["39"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["39"]["Name"] = [[StrokeFrame]];
-    G2L["39"]["BackgroundTransparency"] = 1;
-
-    -- StarterGui.AutoJoiner.Main.StrokeFrame.UIStroke
-    G2L["3a"] = Instance.new("UIStroke", G2L["39"]);
-    G2L["3a"]["Color"] = Color3.fromRGB(255, 255, 255);
-
-    -- StarterGui.AutoJoiner.Main.JoinByRotContainer
-    G2L["3b"] = Instance.new("Frame", G2L["2"]);
-    G2L["3b"]["BorderSizePixel"] = 0;
-    G2L["3b"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["3b"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["3b"]["Size"] = UDim2.new(0.32857, 0, 0.45624, 0);
-    G2L["3b"]["Position"] = UDim2.new(0.16429, 0, 0.44446, 0);
-    G2L["3b"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["3b"]["Name"] = [[JoinByRotContainer]];
-    G2L["3b"]["BackgroundTransparency"] = 1;
-
-    -- StarterGui.AutoJoiner.Main.JoinByRotContainer.MinGen
-    G2L["3c"] = Instance.new("TextLabel", G2L["3b"]);
-    G2L["3c"]["TextWrapped"] = true;
-    G2L["3c"]["ZIndex"] = 2;
-    G2L["3c"]["BorderSizePixel"] = 0;
-    G2L["3c"]["TextSize"] = 14;
-    G2L["3c"]["TextXAlignment"] = Enum.TextXAlignment.Left;
-    G2L["3c"]["TextScaled"] = true;
-    G2L["3c"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["3c"]["FontFace"] = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Heavy, Enum.FontStyle.Normal);
-    G2L["3c"]["TextColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["3c"]["BackgroundTransparency"] = 1;
-    G2L["3c"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["3c"]["Size"] = UDim2.new(0.66792, 0, 0.09011, 0);
-    G2L["3c"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["3c"]["Text"] = [[Specific-Rot Filter]];
-    G2L["3c"]["Name"] = [[MinGen]];
-    G2L["3c"]["Position"] = UDim2.new(0.35017, 0, 0.12993, 0);
-
-    -- StarterGui.AutoJoiner.Main.JoinByRotContainer.MinGen.UITextSizeConstraint
-    G2L["3d"] = Instance.new("UITextSizeConstraint", G2L["3c"]);
-    G2L["3d"]["MaxTextSize"] = 14;
-
-    -- StarterGui.AutoJoiner.Main.JoinByRotContainer.ScrollingFrame
-    G2L["3e"] = Instance.new("ScrollingFrame", G2L["3b"]);
-    G2L["3e"]["Active"] = true;
-    G2L["3e"]["BorderSizePixel"] = 0;
-    G2L["3e"]["BackgroundColor3"] = Color3.fromRGB(39, 39, 39);
-    G2L["3e"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["3e"]["Size"] = UDim2.new(0.91146, 0, 0.64557, 0);
-    G2L["3e"]["Position"] = UDim2.new(0.51668, 0, 0.61605, 0);
-    G2L["3e"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["3e"]["ScrollBarThickness"] = 0;
-
-    -- StarterGui.AutoJoiner.Main.JoinByRotContainer.ScrollingFrame.UIStroke
-    G2L["3f"] = Instance.new("UIStroke", G2L["3e"]);
-    G2L["3f"]["Color"] = Color3.fromRGB(255, 255, 255);
-
-    -- StarterGui.AutoJoiner.Main.JoinByRotContainer.ScrollingFrame.NameHolder
-    G2L["40"] = Instance.new("Frame", G2L["3e"]);
-    G2L["40"]["BorderSizePixel"] = 0;
-    G2L["40"]["BackgroundColor3"] = Color3.fromRGB(50, 50, 50);
-    G2L["40"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["40"]["Size"] = UDim2.new(1, 0, 0.3, 0);
-    G2L["40"]["Position"] = UDim2.new(0.5, 0, 0.06, 0);
-    G2L["40"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["40"]["Name"] = [[NameHolder]];
-    G2L["40"]["BackgroundTransparency"] = 0.1;
-    G2L["40"]["Visible"] = false;
-
-    -- StarterGui.AutoJoiner.Main.JoinByRotContainer.ScrollingFrame.NameHolder.BrainrotName
-    G2L["41"] = Instance.new("TextButton", G2L["40"]);
-    G2L["41"]["TextWrapped"] = true;
-    G2L["41"]["BorderSizePixel"] = 0;
-    G2L["41"]["TextXAlignment"] = Enum.TextXAlignment.Center;
-    G2L["41"]["TextSize"] = 12;
-    G2L["41"]["TextScaled"] = true;
-    G2L["41"]["TextColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["41"]["BackgroundColor3"] = Color3.fromRGB(70, 70, 70);
-    G2L["41"]["FontFace"] = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
-    G2L["41"]["ZIndex"] = 2;
-    G2L["41"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["41"]["BackgroundTransparency"] = 0.2;
-    G2L["41"]["Size"] = UDim2.new(0.9, 0, 0.8, 0);
-    G2L["41"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["41"]["Text"] = [[]];
-    G2L["41"]["Name"] = [[BrainrotName]];
-    G2L["41"]["Position"] = UDim2.new(0.5, 0, 0.5, 0);
-    G2L["41"]["Visible"] = false;
-
-
-    -- StarterGui.AutoJoiner.Main.JoinByRotContainer.ScrollingFrame.NameHolder.BrainrotName.UITextSizeConstraint
-    G2L["42"] = Instance.new("UITextSizeConstraint", G2L["41"]);
-    G2L["42"]["MaxTextSize"] = 12;
-
-    -- StarterGui.AutoJoiner.Main.JoinByRotContainer.ScrollingFrame.UIListLayout
-    G2L["43"] = Instance.new("UIListLayout", G2L["3e"]);
-    G2L["43"]["SortOrder"] = Enum.SortOrder.LayoutOrder;
-
-    -- StarterGui.AutoJoiner.Main.JoinByRotContainer.ToggleFrameGen
-    G2L["44"] = Instance.new("Frame", G2L["3b"]);
-    G2L["44"]["BorderSizePixel"] = 0;
-    G2L["44"]["BackgroundColor3"] = Color3.fromRGB(255, 70, 50);
-    G2L["44"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["44"]["Size"] = UDim2.new(0.27737, 0, 0.09339, 0);
-    G2L["44"]["Position"] = UDim2.new(0.84895, 0, 0.13157, 0);
-    G2L["44"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["44"]["Name"] = [[ToggleFrameGen]];
-
-    -- StarterGui.AutoJoiner.Main.JoinByRotContainer.ToggleFrameGen.UICorner
-    G2L["45"] = Instance.new("UICorner", G2L["44"]);
-    G2L["45"]["CornerRadius"] = UDim.new(0.35, 0);
-
-    -- StarterGui.AutoJoiner.Main.JoinByRotContainer.ToggleFrameGen.Toggle
-    G2L["46"] = Instance.new("TextButton", G2L["44"]);
-    G2L["46"]["TextWrapped"] = true;
-    G2L["46"]["BorderSizePixel"] = 0;
-    G2L["46"]["TextSize"] = 14;
-    G2L["46"]["TextScaled"] = true;
-    G2L["46"]["TextColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["46"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-    G2L["46"]["FontFace"] = Font.new([[rbxasset://fonts/families/SourceSansPro.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
-    G2L["46"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
-    G2L["46"]["Size"] = UDim2.new(0.42105, 0, 1, 0);
-    G2L["46"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
-    G2L["46"]["Text"] = [[]];
-    G2L["46"]["Name"] = [[Toggle]];
-    G2L["46"]["Position"] = UDim2.new(0.20924, 0, 0.48164, 0);
-
-    -- StarterGui.AutoJoiner.Main.JoinByRotContainer.ToggleFrameGen.Toggle.UICorner
-    G2L["47"] = Instance.new("UICorner", G2L["46"]);
-    G2L["47"]["CornerRadius"] = UDim.new(0.22, 0);
-
-    -- StarterGui.AutoJoiner.Main.JoinByRotContainer.ToggleFrameGen.Toggle.UITextSizeConstraint
-    G2L["48"] = Instance.new("UITextSizeConstraint", G2L["46"]);
-    G2L["48"]["MaxTextSize"] = 14;
-
-    -- StarterGui.AutoJoiner.Main.JoinByRotContainer.UIAspectRatioConstraint
-    G2L["49"] = Instance.new("UIAspectRatioConstraint", G2L["3b"]);
-    G2L["49"]["AspectRatio"] = 1.16612;
-
-    -- StarterGui.AutoJoiner.UIAspectRatioConstraint
-    G2L["4a"] = Instance.new("UIAspectRatioConstraint", G2L["1"]);
-    G2L["4a"]["AspectRatio"] = 1.56639;
-
-    -- Input field for adding brainrots (not in new UI, recreated to maintain functionality)
-    local InputFrame = Instance.new("Frame")
-    InputFrame.Name = "InputFrame"
-    InputFrame.Parent = G2L["1"]
-    InputFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-    InputFrame.BackgroundColor3 = Color3.fromRGB(34, 35, 35)
-    InputFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
-    InputFrame.Draggable = true
-    InputFrame.BorderSizePixel = 0
-    InputFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-    InputFrame.Size = UDim2.new(0.25, 0, 0.12, 0)
-    InputFrame.Visible = false
-
-    local UICorner_InputFrame = Instance.new("UICorner")
-    UICorner_InputFrame.CornerRadius = UDim.new(0, 6)
-    UICorner_InputFrame.Parent = InputFrame
-
-    local InputTextBox = Instance.new("TextBox")
-    InputTextBox.Name = "InputTextBox"
-    InputTextBox.Parent = InputFrame
-    InputTextBox.BackgroundColor3 = Color3.fromRGB(39, 39, 39)
-    InputTextBox.BorderColor3 = Color3.fromRGB(0, 0, 0)
-    InputTextBox.BorderSizePixel = 0
-    InputTextBox.Position = UDim2.new(0.05, 0, 0.2, 0)
-    InputTextBox.Size = UDim2.new(0.9, 0, 0.4, 0)
-    InputTextBox.FontFace = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-    InputTextBox.PlaceholderText = "Enter brainrot name"
-    InputTextBox.Text = ""
-    InputTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    InputTextBox.TextScaled = true
-    InputTextBox.TextSize = 14
-    InputTextBox.TextWrapped = true
-
-    local UICorner_InputTextBox = Instance.new("UICorner")
-    UICorner_InputTextBox.CornerRadius = UDim.new(0, 6)
-    UICorner_InputTextBox.Parent = InputTextBox
-
-    local SubmitButton = Instance.new("TextButton")
-    SubmitButton.Name = "SubmitButton"
-    SubmitButton.Parent = InputFrame
-    SubmitButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    SubmitButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
-    SubmitButton.BorderSizePixel = 0
-    SubmitButton.Position = UDim2.new(0.05, 0, 0.65, 0)
-    SubmitButton.Size = UDim2.new(0.4, 0, 0.25, 0)
-    SubmitButton.FontFace = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Bold, Enum.FontStyle.Normal)
-    SubmitButton.Text = "Only Join"
-    SubmitButton.TextColor3 = Color3.fromRGB(0, 0, 0)
-    SubmitButton.TextScaled = true
-    SubmitButton.TextSize = 14
-    SubmitButton.TextWrapped = true
-
-    local UICorner_SubmitButton = Instance.new("UICorner")
-    UICorner_SubmitButton.CornerRadius = UDim.new(0, 6)
-    UICorner_SubmitButton.Parent = SubmitButton
-
-    local IgnoreButton = Instance.new("TextButton")
-    IgnoreButton.Name = "IgnoreButton"
-    IgnoreButton.Parent = InputFrame
-    IgnoreButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-    IgnoreButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
-    IgnoreButton.BorderSizePixel = 0
-    IgnoreButton.Position = UDim2.new(0.55, 0, 0.65, 0)
-    IgnoreButton.Size = UDim2.new(0.4, 0, 0.25, 0)
-    IgnoreButton.FontFace = Font.new([[rbxasset://fonts/families/Inconsolata.json]], Enum.FontWeight.Bold, Enum.FontStyle.Normal)
-    IgnoreButton.Text = "Ignore"
-    IgnoreButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    IgnoreButton.TextScaled = true
-    IgnoreButton.TextSize = 14
-    IgnoreButton.TextWrapped = true
-
-    local UICorner_IgnoreButton = Instance.new("UICorner")
-    UICorner_IgnoreButton.CornerRadius = UDim.new(0, 6)
-    UICorner_IgnoreButton.Parent = IgnoreButton
-
-
-    -- Safe spawn function
-    local function safeSpawn(func)
-        if func then
-            local success, err = pcall(function()
-                spawn(func)
-            end)
-            if not success then
-            end
-        end
-    end
-
-    -- Safe wait function
-    local function safeWait(time)
-        local success, result = pcall(function()
-            return wait(time)
-        end)
-        if not success then
-            return time
-        end
-        return result
-    end
-
-    -- Send Webhook
-    local function SendWebhook(url, data)
-        local httpRequest = (syn and syn.request) or (housekeeper and housekeeper.request) or (http and http.request) or (http_request) or (fluxus and fluxus.request) or request
-        if not httpRequest then
-            return
-        end
-
-        local success, err = pcall(function()
-            httpRequest({
-                Url = url,
-                Method = "POST",
-                Headers = {["Content-Type"] = "application/json"},
-                Body = HttpService:JSONEncode(data)
-            })
-        end)
-        if not success then
-        end
-    end
-
-    -- Webhook queue system
-    local webhookQueue = {}
-    local isProcessingWebhookQueue = false
-    local webhookCooldown = 5
-
-    local function processWebhookQueue()
-        if isProcessingWebhookQueue then return end
-        isProcessingWebhookQueue = true
-
-        while #webhookQueue > 0 and isScriptRunning do
-            local webhookData = table.remove(webhookQueue, 1)
-            local success, err = pcall(function()
-                SendWebhook(WEBHOOK_URL, webhookData)
-            end)
-            if not success then
-            end
-            safeWait(webhookCooldown)
-        end
-        isProcessingWebhookQueue = false
-    end
-
-    -- Send debug message to webhook
-    local function sendDebugToWebhook(message, joinTime)
-        local avatarUrl = "https://www.roblox.com/headshot-thumbnail/image?userId="..LocalPlayer.UserId.."&width=150&height=150&format=png"
-        local data = {
-            embeds = {{
-                description = message,
-                color = 0x00FF00,
-                author = {name = LocalPlayer.Name, icon_url = avatarUrl},
-                footer = {text = joinTime and ("Join Time: "..joinTime.."ms") or "Debug Info"},
-                timestamp = os.date("!%Y-%m-%dT%H:%M:%S.000Z")
-            }}
-        }
-        table.insert(webhookQueue, data)
-        spawn(processWebhookQueue)
-    end
-
-    -- Send join time report to webhook
-    local function sendJoinTimeReport(joinTime, brainrotName, jobId)
-        local avatarUrl = "https://www.roblox.com/headshot-thumbnail/image?userId="..LocalPlayer.UserId.."&width=150&height=150&format=png"
-        local data = {
-            embeds = {{
-                title = "🚀 Join Time Report",
-                description = "**Brainrot:** "..brainrotName.."\n**Job ID:** "..jobId,
-                color = 0x0099FF,
-                fields = {
-                    {name = "⏱️ Join Time", value = joinTime.."ms", inline = true},
-                    {name = "📊 Total Joins", value = tostring(totalJoins), inline = true},
-                    {name = "📈 Average Time", value = totalJoins > 0 and math.floor(totalJoinTime / totalJoins).."ms" or "N/A", inline = true}
-                },
-                author = {name = LocalPlayer.Name, icon_url = avatarUrl},
-                footer = {text = "Auto Joiner Performance"},
-                timestamp = os.date("!%Y-%m-%dT%H:%M:%S.000Z")
-            }}
-        }
-        table.insert(webhookQueue, data)
-        spawn(processWebhookQueue)
-    end
-
-    -- Send crash report to webhook
-    local function sendCrashReport(reason, details)
-        local avatarUrl = "https://www.roblox.com/headshot-thumbnail/image?userId="..LocalPlayer.UserId.."&width=150&height=150&format=png"
-        local data = {
-            embeds = {{
-                title = "💥 Crash Detected",
-                description = "**Reason:** "..reason.."\n**Details:** "..details,
-                color = 0xFF0000,
-                fields = {
-                    {name = "🚨 Crash Count", value = tostring(crashCount), inline = true},
-                    {name = "📊 Teleport Attempts", value = tostring(teleportAttempts), inline = true},
-                    {name = "⏰ Time Since Last Crash", value = math.floor(tick() - lastCrashTime).."s", inline = true}
-                },
-                author = {name = LocalPlayer.Name, icon_url = avatarUrl},
-                footer = {text = "Crash Detection System"},
-                timestamp = os.date("!%Y-%m-%dT%H:%M:%S.000Z")
-            }}
-        }
-        table.insert(webhookQueue, data)
-        spawn(processWebhookQueue)
-    end
-
-    -- Enhanced crash detection
-    local function detectCrash()
-        crashCount = crashCount + 1
-        lastCrashTime = tick()
-        
-        local crashDetails = "Script execution stopped unexpectedly"
-        if hasJoinedNewServer then
-            crashDetails = crashDetails .. " | Post-teleport crash after "..math.floor(tick() - serverJoinTime).."s in new server"
-        end
-        
-        sendCrashReport("Script Crash", crashDetails)
-        
-        
-        isTeleporting = false
-    end
-
-    -- Detect when we successfully join a new server
-    local function detectServerJoin()
-        local currentJobId = game.JobId
-        if currentJobId and currentJobId ~= lastJobId then
-            hasJoinedNewServer = true
-            serverJoinTime = tick()
-            lastJobId = currentJobId
-            
-            isTeleporting = false -- Make sure teleporting is set to false
-            
-            sendDebugToWebhook("🎉 Successfully joined new server! JobId: "..currentJobId)
-            
-            task.spawn(function()
-                task.wait(5)
-                if hasJoinedNewServer and autoJoinerEnabled then
-                    connectWebSocket()
-                end
-            end)
-            
-            -- Reset only websocket-related connections, preserve UI connections
-            connections = {}
-            setupTeleportEventHandlers()
-            
-            task.spawn(function()
-                task.wait(10)
-                if hasJoinedNewServer and tick() - serverJoinTime > 10 then
-                    sendDebugToWebhook("✅ Successfully stayed in new server for 10+ seconds")
-                end
-            end)
-        end
-    end
-
-    -- Check generation filter
-    local function checkGenerationFilter(income)
-        if not generationFilterEnabled then
-            return true
-        end
-        
-        -- Convert income to actual number
-        local incomeValue = parseGeneration(tostring(income))
-        
-        -- Compare actual numbers
-        if minGenerationValue > 0 and incomeValue >= minGenerationValue then
-            return true
-        elseif minGenerationValue > 0 and incomeValue < minGenerationValue then
-            return false
-        end
-        
-        return true
-    end
-
-    -- Check only join filter
-    local function checkOnlyJoinFilter(brainrotName)
-        -- Always check ignore list first, regardless of onlyJoinEnabled
-        for _, item in ipairs(onlyJoinBrainrots) do
-            if item.type == "ignore" and brainrotName:lower():find(item.name:lower(), 1, true) then
-                return "ignore"  -- Found a match in ignore list
-            end
-        end
-        
-        -- Only check join list if onlyJoinEnabled is true
-        if not onlyJoinEnabled or #onlyJoinBrainrots == 0 then
-            return false  -- If no specific brainrots are set, don't consider any as specific
-        end
-        
-        -- Check for join matches
-        for _, item in ipairs(onlyJoinBrainrots) do
-            if item.type == "join" and brainrotName:lower():find(item.name:lower(), 1, true) then
-                return "join"  -- Found a match in join list
-            end
-        end
-        
-        return false
-    end
-
-    -- Add brainrot to list
-    -- Spelling correction for brainrot names
-    local function correctBrainrotSpelling(inputName)
-        local correctedNames = {
-            "Agarrini La Palini",
-            "Anpali Babel",
-            "Antonio",
-            "Belula Beluga",
-            "Bisonte Giuppitere",
-            "Bombardini Tortinii",
-            "Brainrot God Lucky Block",
-            "Brres Teh Patipum",
-            "Cacasito Satalito",
-            "Celularcini Viciosini",
-            "Chachechi",
-            "Chicleteira Bicicleteira",
-            "Cocofanto Elefanto",
-            "Dragon Cannelloni",
-            "Dug Dug Dug",
-            "Dul Dul Dul",
-            "Elefanto Frigo",
-            "Esok Sekolah",
-            "Extinct Ballerina",
-            "Extinct Matteo",
-            "Extinct Tralalero",
-            "Fragola La La La",
-            "Garama and Madundung",
-            "Girafa Celestre",
-            "Graipuss Medussi",
-            "Job Job Job Sahur",
-            "Karkerkar Kurkur",
-            "Ketchuru and Musturu",
-            "Ketupat Kepat",
-            "La Grande Combinasion",
-            "La Karkerkar Combinasion",
-            "La Sahur Combinasion",
-            "La Supreme Combinasion",
-            "La Vacca Saturno Saturnita",
-            "La Vaccca Saturno Saturnita",
-            "Las Sis",
-            "Las Tralaleritas",
-            "Las Vaquitas Saturnitas",
-            "Los Matteos",
-            "Los Bombinitos",
-            "Los Bros",
-            "Los Chicleteiras",
-            "Los Combinasionas",
-            "Los Crocodillitos",
-            "Los Hotspotsitos",
-            "Los Nooo My Hotspotsitos",
-            "Los Orcalitos",
-            "Los Tralaleritos",
-            "Los Tungtungtungcitos",
-            "Mariachi Corazoni",
-            "Mastodontico Telepiedone",
-            "Nuclearo Dinossauro",
-            "Odin Din Din Dun",
-            "Orcalero Orcala",
-            "Orcalita Orcala",
-            "Pakrahmat Mamat",
-            "Piccione Macchina",
-            "Piccionetta Machina",
-            "Pot Hotspot",
-            "Quesadilla Crocodila",
-            "Sammyni Spyderini",
-            "Secret Lucky Block",
-            "Sigma Girl",
-            "Spaghetti Tualetti",
-            "Tacorita Bicicleta",
-            "Tartaruga Cisterna",
-            "Tictac Sahur",
-            "Tigroligre Frutonni",
-            "Torrtuginni Dragonfruitini",
-            "Tototo Sahur",
-            "Tralaledon",
-            "Tralalero Tralala",
-            "Tralalita Tralala",
-            "Trenostruzzo Turbo 3000",
-            "Trenostruzzo Turbo 4000",
-            "Trippi Troppi Troppa Trippa",
-            "Tukanno Bananno",
-            "Urubini Flamenguini"
-        }
-        
-        -- Convert input to lowercase for comparison
-        local lowerInput = string.lower(inputName)
-        
-        -- Check for exact matches first
-        for _, correctName in ipairs(correctedNames) do
-            if string.lower(correctName) == lowerInput then
-                return correctName
-            end
-        end
-        
-        -- Check for partial matches (contains the input)
-        for _, correctName in ipairs(correctedNames) do
-            if string.find(string.lower(correctName), lowerInput, 1, true) then
-                return correctName
-            end
-        end
-        
-        -- Check for similar words (Levenshtein distance approximation)
-        local bestMatch = nil
-        local bestScore = math.huge
-        
-        for _, correctName in ipairs(correctedNames) do
-            local score = 0
-            local words1 = {}
-            local words2 = {}
-            
-            -- Split into words
-            for word in string.gmatch(lowerInput, "%S+") do
-                table.insert(words1, word)
-            end
-            for word in string.gmatch(string.lower(correctName), "%S+") do
-                table.insert(words2, word)
-            end
-            
-            -- Check if any words match
-            for _, word1 in ipairs(words1) do
-                for _, word2 in ipairs(words2) do
-                    if word1 == word2 then
-                        score = score - 10 -- Strong match
-                    elseif string.find(word2, word1, 1, true) then
-                        score = score - 5 -- Partial match
-                    elseif string.len(word1) > 3 and string.len(word2) > 3 then
-                        -- Simple similarity check for longer words
-                        local similarity = 0
-                        local minLen = math.min(string.len(word1), string.len(word2))
-                        for i = 1, minLen do
-                            if string.sub(word1, i, i) == string.sub(word2, i, i) then
-                                similarity = similarity + 1
-                            end
-                        end
-                        if similarity / minLen > 0.6 then
-                            score = score - 3 -- Similar words
-                        end
-                    end
-                end
-            end
-            
-            if score < bestScore then
-                bestScore = score
-                bestMatch = correctName
-            end
-        end
-        
-        -- If we found a reasonable match (score < -3), return it
-        if bestMatch and bestScore < -3 then
-            return bestMatch
-        end
-        
-        -- No correction found, return original
-        return inputName
-    end
-
-    local function addBrainrotToList(brainrotName, brainrotType)
-        if brainrotName == "" then return end
-        table.insert(onlyJoinBrainrots, {name = brainrotName, type = brainrotType})
-        
-        local nameHolder = G2L["3e"]:FindFirstChild("NameHolder")
-        if nameHolder and not nameHolder.BrainrotName.Visible then
-            nameHolder.BrainrotName.Text = brainrotName
-            nameHolder.BrainrotName.Visible = true
-            nameHolder.Visible = true
-            -- Set text color based on type
-            if brainrotType == "ignore" then
-                nameHolder.BrainrotName.TextColor3 = Color3.fromRGB(255, 0, 0) -- Red for ignore
-            else
-                nameHolder.BrainrotName.TextColor3 = Color3.fromRGB(0, 255, 0) -- Green for join
-            end
-            
-            nameHolder.BrainrotName.MouseButton1Click:Connect(function()
-                for i, item in ipairs(onlyJoinBrainrots) do
-                    if item.name == brainrotName then
-                        table.remove(onlyJoinBrainrots, i)
-                        nameHolder.BrainrotName.Visible = false
-                        nameHolder.Visible = false
-                        nameHolder.BrainrotName.Text = ""
-                        saveConfig() -- Save when removing
-                        break
-                    end
-                end
-                G2L["3e"].CanvasSize = UDim2.new(0, 0, 0, G2L["43"].AbsoluteContentSize.Y)
-            end)
-        else
-            local newNameHolder = nameHolder:Clone()
-            newNameHolder.Parent = G2L["3e"]
-            -- Fix positioning for cloned items - let UIListLayout handle positioning
-            newNameHolder.Position = UDim2.new(0.5, 0, 0, 0) -- Reset to center horizontally, let layout handle vertical
-            newNameHolder.BrainrotName.Text = brainrotName
-            newNameHolder.BrainrotName.Visible = true
-            -- Set text color based on type
-            if brainrotType == "ignore" then
-                newNameHolder.BrainrotName.TextColor3 = Color3.fromRGB(255, 0, 0) -- Red for ignore
-            else
-                newNameHolder.BrainrotName.TextColor3 = Color3.fromRGB(0, 255, 0) -- Green for join
-            end
-            
-            newNameHolder.BrainrotName.MouseButton1Click:Connect(function()
-                for i, item in ipairs(onlyJoinBrainrots) do
-                    if item.name == brainrotName then
-                        table.remove(onlyJoinBrainrots, i)
-                        newNameHolder:Destroy()
-                        saveConfig() -- Save when removing
-                        break
-                    end
-                end
-                G2L["3e"].CanvasSize = UDim2.new(0, 0, 0, G2L["43"].AbsoluteContentSize.Y)
-            end)
-        end
-        G2L["3e"].CanvasSize = UDim2.new(0, 0, 0, G2L["43"].AbsoluteContentSize.Y)
-        saveConfig() -- Save when adding
-    end
-
-
-    -- Add log entry for console
-    local function addLogEntry(message, isRed)
-        local logFrame = G2L["27"]:FindFirstChild("FindInfo")
-        local timestamp = os.date("%H:%M:%S")
-        
-        local newLogFrame
-        if logFrame and not logFrame.LogName.Visible then
-            newLogFrame = logFrame
-        else
-            newLogFrame = logFrame:Clone()
-            newLogFrame.Parent = G2L["27"]
-            newLogFrame.LayoutOrder = -tick() -- Make it appear at top with unique negative order
-        end
-        
-        newLogFrame.LogName.Text = string.format("[%s] %s", timestamp, message)
-        newLogFrame.LogName.Visible = true
-        
-        -- Set text color based on parameter or message content
-        if isRed or message:find("❌") or message:find("FAILED") then
-            newLogFrame.LogName.TextColor3 = Color3.fromRGB(255, 0, 0) -- Red
-        elseif message:find("Skipped") then
-            newLogFrame.LogName.TextColor3 = Color3.fromRGB(255, 165, 0)
-        elseif message:find("Debug") then
-            newLogFrame.LogName.TextColor3 = Color3.fromRGB(255, 255, 0)
-        else
-            newLogFrame.LogName.TextColor3 = Color3.fromRGB(91, 255, 127)
-        end
-        
-        G2L["27"].CanvasSize = UDim2.new(0, 0, 0, G2L["28"].AbsoluteContentSize.Y)
-    end
-
-    -- Track existing servers to prevent duplicates
-    local existingServers = {}
-    
-    -- Function to clean up old server entries (prevent memory buildup)
-    local function cleanupOldServers()
-        local currentTime = tick()
-        local maxAge = 300 -- 5 minutes
-        
-        for serverKey, timestamp in pairs(existingServers) do
-            if currentTime - timestamp > maxAge then
-                existingServers[serverKey] = nil
-            end
-        end
-    end
-    
-    -- Function to connect join button functionality
-    local function connectJoinButton(joinButton)
-        joinButton.MouseButton1Click:Connect(function()
-            local jobId = joinButton:GetAttribute("JobId")
-            local brainrotName = joinButton:GetAttribute("BrainrotName")
-            local income = joinButton:GetAttribute("Income")
-            
-            if jobId and brainrotName then
-                addLogEntry("Manual join attempt for "..brainrotName.." (Job ID: "..jobId..")")
-                
-                -- Show loading UI
-                showLoadingUI(brainrotName, income)
-                
-                -- Close websocket first
-                safeCloseWebSocket()
-                
-                -- Wait for websocket closure
-                task.wait(0.5)
-                
-                -- Attempt teleport
-                local success, result = pcall(function()
-                    TeleportService:TeleportToPlaceInstance(109983668079237, jobId, LocalPlayer)
-                end)
-                
-                if not success then
-                    addLogEntry("❌ Manual join failed: "..tostring(result), true)
-                    hideLoadingUI()
-                else
-                    addLogEntry("✅ Manual join initiated for "..brainrotName)
-                    -- Stop auto joiner after successful teleport
-                    autoJoinerEnabled = false
-                    G2L["16"].Text = "Start"
-                    TweenService:Create(G2L["16"], tweenInfo, {BackgroundColor3 = Color3.fromRGB(255, 255, 255)}):Play()
-                    addLogEntry("Auto joiner stopped after manual join")
-                end
-            end
-        end)
-    end
-    
-    -- Add server to GUI
-    local function addServerToGui(brainrotName, playerCount, timestamp, jobId, income)
-        -- Create unique key for duplicate detection
-        local serverKey = brainrotName .. "_" .. (jobId or "unknown") .. "_" .. (income or 0)
-        
-        -- Check if this exact server already exists
-        if existingServers[serverKey] then
-            return -- Skip duplicate
-        end
-        
-        local serverFrame = G2L["a"]:FindFirstChild("FindInfo")
-        local newServerFrame
-        
-        if serverFrame and not serverFrame.Visible then
-            newServerFrame = serverFrame
-        else
-            newServerFrame = serverFrame:Clone()
-            newServerFrame.Parent = G2L["a"]
-            newServerFrame.LayoutOrder = -tick() -- Make it appear at top with unique negative order
-        end
-        
-        newServerFrame.Visible = true
-        
-        -- Ensure we have valid values
-        brainrotName = brainrotName or "Unknown Server"
-        playerCount = playerCount or "0/8"
-        timestamp = timestamp or os.date("%H:%M:%S")
-        income = income or 0
-        
-        
-        -- format brainrot name with generation (show actual generation number)
-        newServerFrame.RotName.Text = brainrotName .. " [" .. income .. "]"
-        
-        -- Color coding for generations
-        local incomeNum = parseGeneration(tostring(income))
-        
-        -- Force color application
-        newServerFrame.RotName.TextScaled = true
-        newServerFrame.RotName.TextSize = 12
-        
-        if incomeNum >= 15000000 then
-            newServerFrame.RotName.TextColor3 = Color3.fromRGB(179, 158, 181) -- Lavender for 15m+
-        elseif incomeNum >= 5000000 then
-            newServerFrame.RotName.TextColor3 = Color3.fromRGB(255, 165, 0) -- Orange for 5m+
-        else
-            newServerFrame.RotName.TextColor3 = Color3.fromRGB(255, 255, 255) -- White for others
-        end
-        
-        -- Restore text scaled after color is applied
-        newServerFrame.RotName.TextScaled = true
-        
-        newServerFrame.RotPlayers.Text = playerCount
-        newServerFrame.Timestamp.Text = timestamp
-        
-        -- Create join button if it doesn't exist
-        local joinButton = newServerFrame:FindFirstChild("JoinButton")
-        if not joinButton then
-            joinButton = Instance.new("TextButton")
-            joinButton.Name = "JoinButton"
-            joinButton.Parent = newServerFrame
-            joinButton.Text = "Join"
-            joinButton.TextColor3 = Color3.fromRGB(0, 0, 0)
-            joinButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            joinButton.BackgroundTransparency = 0.3
-            joinButton.FontFace = Font.new("rbxasset://fonts/families/Inconsolata.json", Enum.FontWeight.Bold)
-            joinButton.TextSize = 10
-            joinButton.TextScaled = true
-            joinButton.BorderSizePixel = 0
-            joinButton.AnchorPoint = Vector2.new(0.5, 0.5)
-            joinButton.Size = UDim2.new(0.12, 0, 0.5, 0)
-            joinButton.Position = UDim2.new(0.9, 0, 0.5, 0)
-            
-            -- Add UICorner for rounded corners (half the previous size)
-            local corner = Instance.new("UICorner")
-            corner.Parent = joinButton
-            corner.CornerRadius = UDim.new(0.25, 0)
-            
-            -- Add UITextSizeConstraint
-            local textConstraint = Instance.new("UITextSizeConstraint")
-            textConstraint.Parent = joinButton
-            textConstraint.MaxTextSize = 10
-        end
-        
-        -- Store job ID as attribute for the join button
-        joinButton:SetAttribute("JobId", jobId)
-        joinButton:SetAttribute("BrainrotName", brainrotName)
-        joinButton:SetAttribute("Income", income)
-        
-        -- Connect join button functionality after attributes are set
-        connectJoinButton(joinButton)
-        
-        -- Mark this server as existing to prevent duplicates (with timestamp)
-        existingServers[serverKey] = tick()
-        
-        -- Clean up old entries periodically
-        if math.random() < 0.1 then -- 10% chance to clean up
-            cleanupOldServers()
-        end
-        
-        G2L["a"].CanvasSize = UDim2.new(0, 0, 0, G2L["b"].AbsoluteContentSize.Y)
-    end
-
-    -- Function to safely close websocket and clean up connections
-    local function safeCloseWebSocket()
-        if websocketConnection then
-            pcall(function()
-                websocketConnection:Close()
-            end)
-            websocketConnection = nil
-        end
-        
-        -- Don't disconnect UI connections, only close the websocket
-        -- The UI connections (like T key binding) should remain active
-    end
-
-    -- Function to reconnect websocket after teleportation
-    local function reconnectAfterTeleport()
-        if isScriptRunning and not isConnecting then
-            task.wait(2) -- Wait a bit longer after teleportation
-            connectWebSocket()
-        end
-    end
-
-    -- Connect to WebSocket
-    local function connectWebSocket()
-        if isConnecting or not isScriptRunning then return end
-        isConnecting = true
-        
-        local success, ws = pcall(function()
-            return WebSocket.connect(WEBSOCKET_URL)
-        end)
-        
-        if not success then
-            isConnecting = false
-            safeWait(5)
-            if isScriptRunning then
-                connectWebSocket()
-            end
-            return
-        end
-        
-        websocketConnection = ws
-        
-        ws.OnMessage:Connect(function(message)
-            
-            local success, data = pcall(function()
-                return HttpService:JSONDecode(message)
-            end)
-            
-            if not success then
-                return
-            end
-            
-            
-            -- Handle different possible data structures
-            local brainrotName = data.brainrotName or data.name or data.brainrot or "Unknown"
-            local jobId = data.jobId or data.jobid or data.serverId or ""
-            local playerCount = ""
-            local timestamp = ""
-            local income
-            
-            -- Parse player count - Discord bot already provides proper format
-            if data.playerCount then
-                local rawCount = tostring(data.playerCount)
-                -- Check if it's already in "X/Y" format from Discord bot
-                if rawCount:match("%d/%d") then
-                    playerCount = rawCount -- Already formatted like "5/8"
-                else
-                    -- If it's just a number, assume max players are 8
-                    playerCount = rawCount.."/8"
-                end
-            elseif data.players then
-                playerCount = tostring(data.players).."/8"
-            elseif data.JobsJoined then -- Alternative format
-                playerCount = tostring(data.JobsJoined).."/8"
-            else
-                playerCount = "0/8"
-            end
-            
-            -- Parse timestamp - Discord bot sends Unix timestamp in milliseconds
-            if data.timestamp then
-                local unixTime = tonumber(data.timestamp)
-                if unixTime then
-                    -- Discord bot sends timestamp in milliseconds, convert to seconds
-                    local date = os.date("!%H:%M:%S", unixTime / 1000)
-                    timestamp = date
-                else
-                    -- If conversion fails, use current time
-                    timestamp = os.date("%H:%M:%S")
-                end
-            elseif data.time then
-                local tm = tostring(data.time)
-                if tm:match("^%d%d:%d%d:%d%d$") then
-                    timestamp = tm
-                else
-                    timestamp = os.date("%H:%M:%S")
-                end
-            else
-                timestamp = os.date("%H:%M:%S")
-            end
-            
-            -- Parse income/generation
-            if data.income then
-                income = data.income
-            elseif data.generation then
-                income = data.generation
-            elseif data.money then
-                income = data.money
-            elseif data.g then
-                income = data.g
-            else
-                -- If no income field found, try to extract from brainrot name or use default
-                local nameWithGen = brainrotName:match("%[(.+)%]")
-                if nameWithGen then
-                    income = parseGeneration(nameWithGen)
-                else
-                    income = 1000000 -- Default to 1M if no income data
-                end
-            end
-            
-            -- Check if this is a specific brainrot we want to join or ignore
-            local filterResult = checkOnlyJoinFilter(brainrotName)
-            
-            if filterResult == "ignore" then
-                addLogEntry("Ignoring brainrot: "..brainrotName.." (in ignore list)")
-                return
-            end
-            
-            -- If only join filter is enabled, ONLY join brainrots in the join list
-            if onlyJoinEnabled then
-                if filterResult == "join" then
-                    addLogEntry("Found specific brainrot to join: "..brainrotName.." (bypassing generation filter)")
-                else
-                    addLogEntry("Skipped "..brainrotName.." (not in only join list) | Income: "..income)
-                    return
-                end
-            else
-                -- Normal generation filter when only join is disabled
-                if not checkGenerationFilter(income) then
-                    addLogEntry("Skipped "..brainrotName.." (Income: "..income..")")
-                    return
-                end
-            end
-            
-            addServerToGui(brainrotName, playerCount, timestamp, jobId, income)
-            
-            if autoJoinerEnabled and not isTeleporting then
-                isTeleporting = true
-                teleportAttempts = teleportAttempts + 1
-                joinStartTime = tick()
-                
-                addLogEntry("Found eligible brainrot: "..brainrotName.." ("..jobId..")")
-                
-                
-                
-                -- Show loading UI
-                showLoadingUI(brainrotName, income)
-                
-                task.wait(0.5) -- Wait after logging join attempt
-                
-                -- Step 1: Close websocket
-                safeCloseWebSocket()
-                
-                -- Step 2: Wait for websocket closure
-                task.wait(0.5)
-                
-                -- Step 3: Join server
-                addLogEntry("Attempting to join server")
-                
-                -- Teleport to server
-                local success, result = pcall(function()
-                    TeleportService:TeleportToPlaceInstance(109983668079237, jobId, LocalPlayer)
-                end)
-                
-                if not success then
-                    addLogEntry("❌ FAILED to join "..brainrotName..": "..tostring(result), true)
-                    hideLoadingUI()
-                    isTeleporting = false
-                else
-                    local joinTime = math.floor((tick() - joinStartTime) * 1000)
-                    addLogEntry("❌ Failed to join "..brainrotName.." in "..joinTime.."ms")
-                    totalJoins = totalJoins + 1
-                    totalJoinTime = totalJoinTime + joinTime
-                    sendJoinTimeReport(joinTime, brainrotName, jobId)
-                    hideLoadingUI()
-                    isTeleporting = false
-                    
-                    -- Stop auto joiner after successful teleport
-                    autoJoinerEnabled = false
-                    G2L["16"].Text = "Start"
-                    TweenService:Create(G2L["16"], tweenInfo, {BackgroundColor3 = Color3.fromRGB(255, 255, 255)}):Play()
-                    addLogEntry("Auto joiner stopped after successful teleport")
-                end
-            end
-        end)
-        
-        ws.OnClose:Connect(function()
-            websocketConnection = nil
-            isConnecting = false
-            
-            -- Only reconnect if script is still running and not teleporting
-            if isScriptRunning and not isTeleporting then
-                safeWait(5)
-                connectWebSocket()
-            elseif isScriptRunning and isTeleporting then
-                -- Set up a delayed reconnection for teleport cases
-                task.spawn(function()
-                    task.wait(5) -- Reduced wait time for faster recovery
-                    if isScriptRunning and not websocketConnection then
-                        connectWebSocket()
-                    end
-                end)
-            end
-        end)
-        
-        isConnecting = false
-    end
-
-    -- Setup teleport event handlers
-    local function setupTeleportEventHandlers()
-        -- No teleport event handlers needed - removed retry logic
-        
-        table.insert(connections, Players.PlayerRemoving:Connect(function(player)
-            if player == LocalPlayer then
-                addLogEntry("Local player left game")
-                isTeleporting = false
-            end
-        end))
-        
-        table.insert(connections, game.Close:Connect(function()
-            isScriptRunning = false
-            if websocketConnection then
-                pcall(function()
-                    websocketConnection:Close()
-                end)
-            end
-            for _, connection in ipairs(connections) do
-                pcall(function()
-                    connection:Disconnect()
-                end)
-            end
-            sendDebugToWebhook("Script shutting down")
-            addLogEntry("Script shutting down")
-        end))
-        
-        -- Use Heartbeat to call detectServerJoin
-        table.insert(connections, RunService.Heartbeat:Connect(function()
-            if isScriptRunning then
-                detectServerJoin()
-            end
-        end))
-    end
-
-    -- Toggle auto joiner
-    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    local buttonTweenInfo = TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-    local greenColor = Color3.fromRGB(0, 255, 0)
-    local greyColor = Color3.fromRGB(128, 128, 128)
-    local redColor = Color3.fromRGB(216, 84, 45)
-
-    local function toggleAutoJoiner()
-        autoJoinerEnabled = not autoJoinerEnabled
-        
-        if autoJoinerEnabled then
-            -- Animate buttons
-            TweenService:Create(G2L["16"], buttonTweenInfo, {Size = UDim2.new(0.24553, 0, 0.07799, 0)}):Play()
-            TweenService:Create(G2L["13"], buttonTweenInfo, {Size = UDim2.new(0.24553, 0, 0.07799, 0)}):Play()
-            
-            -- When enabled: Run button grey (disabled), Stop button red (active)
-            TweenService:Create(G2L["16"], tweenInfo, {BackgroundColor3 = greyColor}):Play()
-            TweenService:Create(G2L["13"], tweenInfo, {BackgroundColor3 = redColor}):Play()
-            G2L["21"].Image = "rbxassetid://118672789412763" -- Online status
-            sendDebugToWebhook("Auto joiner enabled")
-            addLogEntry("Auto joiner enabled")
-            if not websocketConnection then
-                connectWebSocket()
-            end
-        else
-            -- Animate buttons
-            TweenService:Create(G2L["16"], buttonTweenInfo, {Size = UDim2.new(0.24553, 0, 0.07799, 0)}):Play()
-            TweenService:Create(G2L["13"], buttonTweenInfo, {Size = UDim2.new(0.24553, 0, 0.07799, 0)}):Play()
-            
-            -- When disabled: Run button white (ready), Stop button grey (disabled)
-            TweenService:Create(G2L["16"], tweenInfo, {BackgroundColor3 = Color3.fromRGB(255, 255, 255)}):Play()
-            TweenService:Create(G2L["13"], tweenInfo, {BackgroundColor3 = greyColor}):Play()
-            G2L["21"].Image = "rbxassetid://118672789412763" -- Offline status
-            addLogEntry("Auto joiner disabled")
-            sendDebugToWebhook("Auto joiner disabled")
-            if websocketConnection then
-                pcall(function()
-                    websocketConnection:Close()
-                end)
-                websocketConnection = nil
-            end
-        end
-    end
-
-    -- UI Event Handlers
-    G2L["16"].MouseButton1Click:Connect(function()
-        if not autoJoinerEnabled then
-            toggleAutoJoiner()
+    UserInputService.InputChanged:Connect(function(io)
+        if dragging and io.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = io.Position - dragStart
+            mainWin.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
         end
     end)
-
-    G2L["13"].MouseButton1Click:Connect(function()
-        if autoJoinerEnabled then
-            -- Close websocket when stop button is clicked
-            safeCloseWebSocket()
-            toggleAutoJoiner()
-        end
-    end)
-
-    G2L["19"].MouseButton1Click:Connect(function()
-        InputFrame.Visible = true
-        G2L["2"].Visible = false
-    end)
-
-    -- Note: Join button connections are now handled directly in addServerToGui function
-    -- after attributes are set, ensuring all buttons work properly including the first one
-
-    SubmitButton.MouseButton1Click:Connect(function()
-        local brainrotName = InputTextBox.Text
-        if brainrotName ~= "" then
-            addBrainrotToList(brainrotName, "join")
-            addLogEntry("Added brainrot to only join list: "..brainrotName)
-            InputTextBox.Text = ""
-            InputFrame.Visible = false
-            G2L["2"].Visible = true
-        end
-    end)
-
-    IgnoreButton.MouseButton1Click:Connect(function()
-        local brainrotName = InputTextBox.Text
-        if brainrotName ~= "" then
-            addBrainrotToList(brainrotName, "ignore")
-            addLogEntry("Added brainrot to ignore list: "..brainrotName)
-            InputTextBox.Text = ""
-            InputFrame.Visible = false
-            G2L["2"].Visible = true
-        end
-    end)
-
-
-
-    G2L["30"].FocusLost:Connect(function(enterPressed)
-        if enterPressed then
-            minGeneration = G2L["30"].Text
-            updateMinGenerationValue()
-            addLogEntry("Set minimum generation to "..minGeneration)
-            saveConfig() -- Save when changing min generation
-        end
-    end)
-
-    G2L["35"].MouseButton1Click:Connect(function()
-        -- Toggle the state
-        generationFilterEnabled = not generationFilterEnabled
-        
-        -- Get the correct colors and positions
-        local targetColor = generationFilterEnabled and greenColor or Color3.fromRGB(255, 70, 50)
-        local targetPosition = generationFilterEnabled and UDim2.new(0.79, 0, 0.5, 0) or UDim2.new(0.21, 0, 0.5, 0)
-        
-        -- Animate toggle button sliding to the right (preserving original Y position)
-        TweenService:Create(G2L["35"], buttonTweenInfo, {Position = targetPosition}):Play()
-        TweenService:Create(G2L["33"], tweenInfo, {BackgroundColor3 = targetColor}):Play()
-        
-        addLogEntry("Generation filter "..(generationFilterEnabled and "enabled" or "disabled"))
-        saveConfig() -- Save when toggling generation filter
-    end)
-
-    G2L["46"].MouseButton1Click:Connect(function()
-        -- Toggle the state
-        onlyJoinEnabled = not onlyJoinEnabled
-        
-        -- Get the correct colors and positions
-        local targetColor = onlyJoinEnabled and greenColor or Color3.fromRGB(255, 70, 50)
-        local targetPosition = onlyJoinEnabled and UDim2.new(0.79, 0, 0.48, 0) or UDim2.new(0.21, 0, 0.48, 0)
-        
-        -- Animate toggle button sliding to the right (preserving original Y position)
-        TweenService:Create(G2L["46"], buttonTweenInfo, {Position = targetPosition}):Play()
-        TweenService:Create(G2L["44"], tweenInfo, {BackgroundColor3 = targetColor}):Play()
-        
-        addLogEntry("Specific-Rot join "..(onlyJoinEnabled and "enabled" or "disabled"))
-        saveConfig() -- Save when toggling specific-rot join
-    end)
-
-
-    -- Toggle GUI visibility function (keep open button always visible)
-    local function toggleGUI()
-        G2L["2"].Visible = not G2L["2"].Visible
-    end
-
-    -- Open button click handler - use uiConnections to prevent disconnection
-    table.insert(uiConnections, OpenButton.MouseButton1Click:Connect(toggleGUI))
-
-    -- Keyboard binding (T key) - use uiConnections to prevent disconnection
-    table.insert(uiConnections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        
-        if input.KeyCode == Enum.KeyCode.T then
-            toggleGUI()
-        elseif input.KeyCode == Enum.KeyCode.Y then
-            -- Test configuration system
-            testConfig()
-        elseif input.KeyCode == Enum.KeyCode.U then
-            -- Force UI update
-            forceUIUpdate()
-        end
-    end))
-
-    -- Remove minimize and close buttons from header (after GUI is fully created)
-    if G2L["1f"] then G2L["1f"].Visible = false end -- Close button (X)
-    if G2L["22"] then G2L["22"].Visible = false end -- Minimize button (-)
-
-    -- Dragging functionality for HeaderFrame (G2L["1c"])
-    local dragging = false
-    local lastMousePosition = Vector2.new(0, 0)
-
-    G2L["1c"].InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            lastMousePosition = input.Position
-            G2L["1c"].Parent.InputBegan:CaptureMouse()
-        end
-    end)
-
-    G2L["1c"].InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - lastMousePosition
-            local newPosition = G2L["1c"].Parent.Position + UDim2.new(0, delta.X, 0, delta.Y)
-            G2L["1c"].Parent.Position = newPosition
-            lastMousePosition = input.Position
-        end
-    end)
-
-    G2L["1c"].InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+    UserInputService.InputEnded:Connect(function(io)
+        if io.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = false
-            G2L["1c"].Parent.InputBegan:ReleaseMouse()
         end
     end)
+end
 
-    -- Close button - Fully terminate script
-    G2L["1f"].MouseButton1Click:Connect(function()
-        addLogEntry("Closing auto joiner...")
-        G2L["1"].Enabled = false
-        isScriptRunning = false
-        
-        -- Hide loading UI if visible
-        hideLoadingUI()
-        
-        -- Clean up connections
-        if websocketConnection then
-            pcall(function()
-                websocketConnection:Close()
-            end)
+-- ─────────────────────────────────────────────────────────
+--  MINI PANEL  (BK_Mini)
+-- ─────────────────────────────────────────────────────────
+local MiniGui = New("ScreenGui", {
+    Name           = "BK_Mini",
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+    ResetOnSpawn   = false,
+}, PlayerGui)
+
+local miniScale = New("UIScale", {}, nil)
+
+local miniContainer = New("Frame", {
+    Name                  = "MiniGuiContainer",
+    Active                = true,
+    Position              = UDim2.new(0.5, -140, 1, -381),
+    Size                  = UDim2.new(0, 280, 0, 380),
+    BackgroundColor3      = T.BG_Panel,
+    BackgroundTransparency = 0.06,
+    BorderSizePixel       = 0,
+}, MiniGui)
+Round(miniContainer, 12)
+Stroke(miniContainer, T.Purple, 1.5, 0.4)
+miniScale.Parent = miniContainer
+
+-- mini header
+local miniHeader = New("Frame", {
+    Size             = UDim2.new(1, 0, 0, 42),
+    BackgroundColor3 = T.BG_Header,
+    BorderSizePixel  = 0,
+}, miniContainer)
+Round(miniHeader, 12)
+
+New("ImageLabel", {
+    Position              = UDim2.new(0, 10, 0.5, -12),
+    Size                  = UDim2.new(0, 24, 0, 24),
+    BackgroundTransparency = 1,
+    Image                 = "rbxassetid://137079323322559",
+}, miniHeader)
+Round(miniHeader, 8)
+
+local miniTitle = New("TextLabel", {
+    Position              = UDim2.new(0, 40, 0, 0),
+    Size                  = UDim2.new(1, -80, 1, 0),
+    BackgroundTransparency = 1,
+    Text                  = "BK's Quick Panel",
+    TextColor3            = T.Cyan,
+    Font                  = Enum.Font.GothamBold,
+    TextSize              = 14,
+    TextXAlignment        = Enum.TextXAlignment.Left,
+}, miniHeader)
+New("UIGradient", {
+    Rotation = 45,
+    Color    = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, T.Cyan),
+        ColorSequenceKeypoint.new(1, T.Purple),
+    }),
+}, miniTitle)
+
+-- online indicator dot
+local onlineDot = New("Frame", {
+    Position              = UDim2.new(1, -50, 0.5, -4),
+    Size                  = UDim2.new(0, 8, 0, 8),
+    BackgroundColor3      = T.Green,
+    BorderSizePixel       = 0,
+}, miniHeader)
+Round(onlineDot, 4)
+
+-- collapse button
+local miniCollapseBtn = New("TextButton", {
+    Position              = UDim2.new(1, -36, 0.5, -15),
+    Size                  = UDim2.new(0, 30, 0, 30),
+    BackgroundColor3      = T.BG_Entry,
+    BackgroundTransparency = 0.3,
+    Text                  = "−",
+    TextColor3            = T.Text,
+    Font                  = Enum.Font.GothamBold,
+    TextSize              = 18,
+    BorderSizePixel       = 0,
+}, miniHeader)
+Round(miniCollapseBtn, 6)
+Stroke(miniCollapseBtn, T.Purple)
+
+-- mini scroll body
+local miniScroll = New("ScrollingFrame", {
+    Position                = UDim2.new(0, 0, 0, 46),
+    Size                    = UDim2.new(1, 0, 1, -46),
+    BackgroundTransparency  = 1,
+    BorderSizePixel         = 0,
+    ScrollBarThickness      = 3,
+    ScrollBarImageColor3    = T.Purple,
+    ScrollBarImageTransparency = 0.5,
+    AutomaticCanvasSize     = Enum.AutomaticSize.Y,
+    CanvasSize              = UDim2.new(0, 0, 0, 0),
+}, miniContainer)
+New("UIPadding", { PaddingTop = UDim.new(0, 4) }, miniScroll)
+New("UIListLayout", { Padding = UDim.new(0, 4) }, miniScroll)
+
+-- status card
+local statusCard = New("Frame", {
+    Size                  = UDim2.new(1, 0, 0, 44),
+    BackgroundColor3      = T.BG_Entry,
+    BackgroundTransparency = 0.4,
+    BorderSizePixel       = 0,
+}, miniScroll)
+Round(statusCard, 8)
+Stroke(statusCard, T.Purple)
+
+local stealStatusLabel = New("TextLabel", {
+    Position              = UDim2.new(0, 8, 0, 3),
+    Size                  = UDim2.new(0.5, 0, 0, 18),
+    BackgroundTransparency = 1,
+    Text                  = "Steal: Idle",
+    TextColor3            = T.Green,
+    Font                  = Enum.Font.GothamMedium,
+    TextSize              = 11,
+    TextXAlignment        = Enum.TextXAlignment.Left,
+}, statusCard)
+
+local targetsLabel = New("TextLabel", {
+    Position              = UDim2.new(0.5, 0, 0, 3),
+    Size                  = UDim2.new(0.5, -8, 0, 18),
+    BackgroundTransparency = 1,
+    Text                  = "Targets: 0",
+    TextColor3            = T.Cyan,
+    Font                  = Enum.Font.GothamMedium,
+    TextSize              = 11,
+    TextXAlignment        = Enum.TextXAlignment.Right,
+}, statusCard)
+
+local targetNameLabel = New("TextLabel", {
+    Position              = UDim2.new(0, 8, 0, 22),
+    Size                  = UDim2.new(1, -16, 0, 16),
+    BackgroundTransparency = 1,
+    Text                  = "No target",
+    TextColor3            = T.TextDim,
+    Font                  = Enum.Font.Gotham,
+    TextSize              = 10,
+    TextTruncate          = Enum.TextTruncate.AtEnd,
+    TextXAlignment        = Enum.TextXAlignment.Left,
+}, statusCard)
+
+local playersLabel = New("TextLabel", {
+    Position              = UDim2.new(0.5, 0, 0, 22),
+    Size                  = UDim2.new(0.5, -8, 0, 16),
+    BackgroundTransparency = 1,
+    Text                  = "Players: 0",
+    TextColor3            = T.TextDim,
+    Font                  = Enum.Font.Gotham,
+    TextSize              = 10,
+    TextXAlignment        = Enum.TextXAlignment.Right,
+}, statusCard)
+
+-- section label helper
+local function MiniSection(text)
+    local lbl = New("TextLabel", {
+        Size                  = UDim2.new(1, 0, 0, 20),
+        BackgroundTransparency = 1,
+        Text                  = text,
+        TextColor3            = T.TextDim,
+        Font                  = Enum.Font.GothamBold,
+        TextSize              = 10,
+        TextXAlignment        = Enum.TextXAlignment.Left,
+    }, miniScroll)
+    New("UIPadding", { PaddingLeft = UDim.new(0, 8) }, lbl)
+    New("UIGradient", {
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, T.Purple),
+            ColorSequenceKeypoint.new(1, T.Cyan),
+        }),
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.4),
+            NumberSequenceKeypoint.new(1, 0.7),
+        }),
+    }, lbl)
+end
+
+-- mini toggle row helper
+local function MiniToggle(label, key)
+    local row = New("Frame", {
+        Size                  = UDim2.new(1, 0, 0, 32),
+        BackgroundColor3      = T.BG_Entry,
+        BackgroundTransparency = 0.5,
+        BorderSizePixel       = 0,
+    }, miniScroll)
+    Round(row, 8)
+    Stroke(row, T.Purple)
+
+    New("TextLabel", {
+        Position              = UDim2.new(0, 8, 0, 0),
+        Size                  = UDim2.new(1, -60, 1, 0),
+        BackgroundTransparency = 1,
+        Text                  = label,
+        TextColor3            = T.Text,
+        Font                  = Enum.Font.GothamMedium,
+        TextSize              = 12,
+        TextXAlignment        = Enum.TextXAlignment.Left,
+    }, row)
+
+    -- the toggle widget itself (reuse same pattern as features tab)
+    local bgToggle = New("Frame", {
+        Position              = UDim2.new(1, -46, 0.5, -10),
+        Size                  = UDim2.new(0, 40, 0, 20),
+        BackgroundColor3      = Color3.fromRGB(30, 28, 38),
+        BorderSizePixel       = 0,
+    }, row)
+    Round(bgToggle, 10)
+    Stroke(bgToggle, T.Purple, 1, 0.55)
+    New("UIGradient", {
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, T.Purple),
+            ColorSequenceKeypoint.new(1, T.BG_Deep),
+        }),
+    }, bgToggle)
+
+    local knob = New("Frame", {
+        Position              = UDim2.new(0, 2, 0.5, -8),
+        Size                  = UDim2.new(0, 16, 0, 16),
+        BackgroundColor3      = Color3.fromRGB(255, 255, 255),
+        BorderSizePixel       = 0,
+    }, bgToggle)
+    Round(knob, 8)
+
+    local togBtn = New("TextButton", {
+        Size                  = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text                  = "",
+    }, bgToggle)
+    togBtn.MouseButton1Click:Connect(function()
+        State.Toggle[key] = not State.Toggle[key]
+        local on = State.Toggle[key]
+        Tween(knob, TweenInfo.new(0.2),
+            { Position       = on and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8),
+              BackgroundColor3 = on and T.Purple or Color3.fromRGB(255, 255, 255) })
+    end)
+end
+
+MiniSection("Steal")
+for _, fd in ipairs(FEATURE_DEFS) do
+    MiniToggle(fd.label, fd.key)
+end
+
+-- quick-action buttons grid
+MiniSection("Actions")
+local actionsGrid = New("Frame", {
+    Size                  = UDim2.new(1, 0, 0, 96),
+    BackgroundTransparency = 1,
+}, miniScroll)
+New("UIGridLayout", {
+    CellPadding = UDim2.new(0, 8, 0, 8),
+    CellSize    = UDim2.new(0.5, -4, 0, 30),
+    SortOrder   = Enum.SortOrder.LayoutOrder,
+}, actionsGrid)
+
+local ACTIONS = {
+    { label = "TP Highest Gen",   color = T.Pink,  action = function() ShowNotif("🚀", "Teleporting to highest gen", "info") end },
+    { label = "TP Highest Value", color = T.Gold,  action = function() ShowNotif("💰", "Teleporting to highest value", "info") end },
+    { label = "Clone (DESYNC)",   color = T.Cyan,  action = function() ShowNotif("👥", "Clone triggered", "info") end },
+    { label = "Kick Self",        color = T.Pink,  action = function() LocalPlayer:Kick("BK Hub self-kick") end },
+    { label = "Rejoin",           color = T.Blue,  action = function() TeleportService:Teleport(game.PlaceId, LocalPlayer) end },
+    { label = "Ragdoll",          color = T.Gold,  action = function() ShowNotif("💀", "Ragdoll triggered", "info") end },
+}
+
+for i, act in ipairs(ACTIONS) do
+    local btn = New("TextButton", {
+        LayoutOrder           = i,
+        BackgroundColor3      = act.color,
+        BackgroundTransparency = 0.3,
+        Text                  = act.label,
+        TextColor3            = Color3.fromRGB(255, 255, 255),
+        Font                  = Enum.Font.GothamBold,
+        TextSize              = 11,
+        Size                  = UDim2.new(0, 0, 0, 30),
+        BorderSizePixel       = 0,
+    }, actionsGrid)
+    Round(btn, 6)
+    Stroke(btn, act.color, 1, 0.5)
+
+    btn.MouseEnter:Connect(function()
+        Tween(btn, TweenInfo.new(0.1), { BackgroundTransparency = 0.15 })
+    end)
+    btn.MouseLeave:Connect(function()
+        Tween(btn, TweenInfo.new(0.1), { BackgroundTransparency = 0.3 })
+    end)
+    btn.MouseButton1Click:Connect(act.action)
+end
+
+-- toggle-main-gui button (bottom)
+local toggleMainBtn = New("TextButton", {
+    Size                  = UDim2.new(1, 0, 0, 30),
+    BackgroundColor3      = T.Purple,
+    BackgroundTransparency = 0.2,
+    Text                  = "Toggle Main GUI",
+    TextColor3            = Color3.fromRGB(255, 255, 255),
+    Font                  = Enum.Font.GothamBold,
+    TextSize              = 13,
+    BorderSizePixel       = 0,
+}, miniScroll)
+Round(toggleMainBtn, 8)
+Stroke(toggleMainBtn, T.Cyan)
+
+toggleMainBtn.MouseButton1Click:Connect(function()
+    State.HubVisible = not State.HubVisible
+    mainWin.Visible  = State.HubVisible
+    titleBar.Visible = State.HubVisible
+end)
+
+-- collapse mini panel
+local _miniOpen = true
+miniCollapseBtn.MouseButton1Click:Connect(function()
+    _miniOpen = not _miniOpen
+    miniScroll.Visible      = _miniOpen
+    miniCollapseBtn.Text    = _miniOpen and "−" or "+"
+    Tween(miniContainer, TweenInfo.new(0.25, Enum.EasingStyle.Quart),
+        { Size = _miniOpen
+            and UDim2.new(0, 280, 0, 380)
+            or  UDim2.new(0, 280, 0, 42) })
+end)
+
+-- drag mini panel
+do
+    local drag, ds, sp = false, nil, nil
+    miniHeader.InputBegan:Connect(function(io)
+        if io.UserInputType == Enum.UserInputType.MouseButton1 then
+            drag = true; ds = io.Position; sp = miniContainer.Position
         end
-        for _, connection in ipairs(connections) do
-            pcall(function()
-                connection:Disconnect()
-            end)
+    end)
+    miniHeader.InputEnded:Connect(function(io)
+        if io.UserInputType == Enum.UserInputType.MouseButton1 then drag = false end
+    end)
+    UserInputService.InputChanged:Connect(function(io)
+        if drag and io.UserInputType == Enum.UserInputType.MouseMovement then
+            local d = io.Position - ds
+            miniContainer.Position = UDim2.new(
+                sp.X.Scale, sp.X.Offset + d.X,
+                sp.Y.Scale, sp.Y.Offset + d.Y
+            )
         end
-        
-        -- Fully destroy GUI after cleanup
-        task.spawn(function()
-            task.wait(0.1)
-            G2L["1"]:Destroy()
-            pcall(function()
-                error("Script terminated by user")
-            end)
+    end)
+end
+
+-- ─────────────────────────────────────────────────────────
+--  UNLOCK BASE UI  (BK_Unlock)
+-- ─────────────────────────────────────────────────────────
+local UnlockGui = New("ScreenGui", {
+    Name           = "BK_Unlock",
+    ZIndexBehavior = Enum.ZIndexBehavior.Global,
+    ResetOnSpawn   = false,
+}, PlayerGui)
+
+local unlockBar = New("Frame", {
+    Name                  = "UnlockBaseContainer",
+    Position              = UDim2.new(0.5, -93, 0, 25),
+    Size                  = UDim2.new(0, 234, 0, 58),
+    BackgroundColor3      = T.BG_Panel,
+    BackgroundTransparency = 0.08,
+    ZIndex                = 999999999,
+    BorderSizePixel       = 0,
+}, UnlockGui)
+Round(unlockBar, 10)
+Stroke(unlockBar, T.Cyan)
+
+-- lock indicator
+local lockBtn = New("TextButton", {
+    Name                  = "LockBtn",
+    Position              = UDim2.new(0, 4, 0.5, -20),
+    Size                  = UDim2.new(0, 30, 0, 40),
+    BackgroundTransparency = 1,
+    Text                  = "🔓",
+    TextColor3            = T.Cyan,
+    TextSize              = 22,
+    ZIndex                = 999999999,
+    BorderSizePixel       = 0,
+}, unlockBar)
+Round(lockBtn, 6)
+Stroke(lockBtn, T.Cyan)
+New("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, T.Cyan),
+        ColorSequenceKeypoint.new(1, T.Purple),
+    }),
+    Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.8),
+        NumberSequenceKeypoint.new(1, 0.95),
+    }),
+}, lockBtn)
+
+-- unlock buttons 1-3
+local UNLOCK_COLS = { T.Cyan, T.Purple, T.Pink }
+for i = 1, 3 do
+    local xPos = 48 + (i - 1) * 59
+    local ubtn = New("TextButton", {
+        Name                  = "UnlockBtn" .. i,
+        Position              = UDim2.new(0, xPos, 0, 4),
+        Size                  = UDim2.new(0, 50, 0, 50),
+        BackgroundColor3      = T.BG_Panel,
+        BackgroundTransparency = 0.1,
+        Text                  = tostring(i),
+        TextColor3            = UNLOCK_COLS[i],
+        TextSize              = 32,
+        Font                  = Enum.Font.GothamBold,
+        ZIndex                = 999999999,
+        BorderSizePixel       = 0,
+    }, unlockBar)
+    Round(ubtn, 10)
+    Stroke(ubtn, UNLOCK_COLS[i])
+    New("UIGradient", {
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, UNLOCK_COLS[i]),
+            ColorSequenceKeypoint.new(1, T.BG_Deep),
+        }),
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.6),
+            NumberSequenceKeypoint.new(1, 0.95),
+        }),
+    }, ubtn)
+
+    ubtn.MouseEnter:Connect(function()
+        Tween(ubtn, TweenInfo.new(0.12), { BackgroundTransparency = 0.0 })
+    end)
+    ubtn.MouseLeave:Connect(function()
+        Tween(ubtn, TweenInfo.new(0.12), { BackgroundTransparency = 0.1 })
+    end)
+    ubtn.MouseButton1Click:Connect(function()
+        ShowNotif("🔓", "Unlocking plot slot " .. i, "info")
+        Tween(ubtn, TweenInfo.new(0.08), { TextColor3 = T.Green })
+        task.delay(0.5, function()
+            Tween(ubtn, TweenInfo.new(0.2), { TextColor3 = UNLOCK_COLS[i] })
         end)
     end)
+end
 
+-- drag unlock bar
+do
+    local drag, ds, sp = false, nil, nil
+    unlockBar.InputBegan:Connect(function(io)
+        if io.UserInputType == Enum.UserInputType.MouseButton1 then
+            drag = true; ds = io.Position; sp = unlockBar.Position
+        end
+    end)
+    unlockBar.InputEnded:Connect(function(io)
+        if io.UserInputType == Enum.UserInputType.MouseButton1 then drag = false end
+    end)
+    UserInputService.InputChanged:Connect(function(io)
+        if drag and io.UserInputType == Enum.UserInputType.MouseMovement then
+            local d = io.Position - ds
+            unlockBar.Position = UDim2.new(
+                sp.X.Scale, sp.X.Offset + d.X,
+                sp.Y.Scale, sp.Y.Offset + d.Y
+            )
+        end
+    end)
+end
 
-    -- Initialize with safety checks
-    local function safeInitialize()
-        pcall(function()
-            addLogEntry("Auto joiner script initialized")
-            sendDebugToWebhook("Auto joiner script initialized")
-            
-            -- Start brainrot scrambler
-            startBrainrotScrambler()
-            
-            -- Load saved configuration (but don't apply to UI yet)
-            loadConfig()
-            
-            setupTeleportEventHandlers()
+-- ─────────────────────────────────────────────────────────
+--  SCANNER  — detect animals across all plots
+-- ─────────────────────────────────────────────────────────
+local RARITY_RANK = {
+    Common = 1, Rare = 2, Epic = 3, Diamond = 4, Mythic = 5, Gold = 6,
+}
+local COINS_TABLE = {
+    -- approximate coins/s from log observations
+    ["Fluriflura"]            = 7,
+    ["Svinina Bombardino"]    = 10,
+    ["Pipi Kiwi"]             = 13,
+    ["Trippi Troppi"]         = 23,
+    ["Boneca Ambalabu"]       = 40,
+    ["Tim Cheese"]            = 5,
+    ["Cappuccino Assassino"]  = 75,
+    ["Avocadini Antilopini"]  = 115,
+    ["Bambini Crostini"]      = 135,
+    ["Bananita Dolphinita"]   = 150,
+    ["Brr Brr Patapim"]       = 100,
+    ["Toiletto Focaccino"]    = 16000,
+}
 
-            -- Heartbeat for crash detection
-            table.insert(connections, RunService.Heartbeat:Connect(function()
-                if isScriptRunning then
-                    detectServerJoin()
+local function ScanAnimals()
+    local renderedRoot = workspace:FindFirstChild("RenderedMovingAnimals")
+    if not renderedRoot then return end
+
+    -- clear old entries
+    for _, child in ipairs(animalList:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+    State.Animals = {}
+
+    local plotsFolder = workspace:FindFirstChild("Plots")
+    local plots = plotsFolder and plotsFolder:GetChildren() or {}
+    local plotIndex = {}
+    for i, p in ipairs(plots) do
+        plotIndex[p.Name] = i
+    end
+
+    for _, animal in ipairs(renderedRoot:GetChildren()) do
+        if animal:IsA("Model") then
+            local name    = animal.Name
+            local coins   = COINS_TABLE[name] or 0
+            local isCarpet = animal:GetAttribute("isCarpet") or false
+            local mutation = animal:GetAttribute("__mutation")
+            local rarity   = "Common"
+
+            -- derive rarity from mutation or name heuristic
+            if mutation and mutation:find("Diamond") then rarity = "Diamond"
+            elseif mutation and mutation:find("Gold")    then rarity = "Gold"
+            elseif name == "Toiletto Focaccino"          then rarity = "Mythic"
+            elseif name == "Avocadini Antilopini"
+                or name == "Cappuccino Assassino"        then rarity = "Epic"
+            elseif name == "Boneca Ambalabu"
+                or name == "Bambini Crostini"
+                or name == "Bananita Dolphinita"         then rarity = "Rare"
+            end
+
+            local entry = {
+                name     = name,
+                rarity   = rarity,
+                mutation = mutation,
+                coins    = coins,
+                model    = animal,
+                isCarpet = isCarpet,
+            }
+            table.insert(State.Animals, entry)
+            AddAnimalEntry(entry)
+        end
+    end
+
+    -- sort by rarity descending
+    table.sort(State.Animals, function(a, b)
+        return (RARITY_RANK[a.rarity] or 0) > (RARITY_RANK[b.rarity] or 0)
+    end)
+
+    State.ScannerReady = true
+    ShowNotif("✓", ("Scanner Ready — %d animals"):format(#State.Animals), "success")
+end
+
+-- ─────────────────────────────────────────────────────────
+--  STEAL LOGIC
+-- ─────────────────────────────────────────────────────────
+local function UpdateStealTargets()
+    local all = Players:GetPlayers()
+    State.Targets = {}
+    for _, p in ipairs(all) do
+        if p ~= LocalPlayer then
+            table.insert(State.Targets, p)
+        end
+    end
+    targetsLabel.Text  = "Targets: " .. #State.Targets
+    playersLabel.Text  = "Players: " .. #all
+end
+
+local function PickStealTarget()
+    if #State.Targets == 0 then return end
+
+    local target = nil
+    if State.Toggle.StealNearest then
+        -- pick closest by character distance
+        local myPos = LocalPlayer.Character
+            and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            and LocalPlayer.Character.HumanoidRootPart.Position
+        if myPos then
+            local best, bestDist = nil, math.huge
+            for _, p in ipairs(State.Targets) do
+                if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                    local d = (p.Character.HumanoidRootPart.Position - myPos).Magnitude
+                    if d < bestDist then best = p; bestDist = d end
                 end
-            end))
-            
-            -- Connect WebSocket safely
-            task.spawn(function()
-                task.wait(1) -- Wait a moment before connecting
-                connectWebSocket()
-            end)
-        end)
+            end
+            target = best
+        end
+    else
+        target = State.Targets[1]
     end
 
-    -- Error handling for script crashes
-    local function handleError(err)
-        if err then
-            detectCrash()
-            addLogEntry("Script error: "..tostring(err))
-            sendCrashReport("Script Error", tostring(err))
+    if target then
+        State.StealTarget = target
+        targetNameLabel.Text  = target.Name
+        stealModeLabel.Text   = "Targeting: " .. target.Name
+        stealStatusLabel.Text = "Steal: Targeting"
+
+        -- update steal bar entries
+        for _, c in ipairs(targetListFrame:GetChildren()) do
+            if c:IsA("Frame") then c:Destroy() end
+        end
+        AddTargetRow(target.Name, "?", 1, nil)
+    end
+end
+
+-- ─────────────────────────────────────────────────────────
+--  RUNTIME LOOPS
+-- ─────────────────────────────────────────────────────────
+
+-- FPS + ping + HUD colour cycling
+local statsStep  = 0
+local colorPhase = 0
+
+RunService.Heartbeat:Connect(function(dt)
+    statsStep = statsStep + dt
+    State.FPS = math.floor(1 / math.max(dt, 0.001))
+
+    if statsStep >= 1 then
+        statsStep = 0
+
+        -- update ping
+        local ok, stats = pcall(function()
+            return game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()
+        end)
+        if ok then State.Ping = math.floor(stats) end
+
+        local txt = ("FPS: %d | %dms"):format(State.FPS, State.Ping)
+        fpsLabel.Text        = txt
+        headerFpsLabel.Text  = txt
+
+        -- update steal targets
+        UpdateStealTargets()
+        if State.StealTarget == nil and State.Toggle.StealHighestGen then
+            PickStealTarget()
+        end
+
+        -- update steal fill bar
+        if State.StealTarget and State.StealProgress > 0 then
+            stealPctLabel.Text  = ("%d%%"):format(State.StealProgress)
+            Tween(stealFill, TweenInfo.new(0.5),
+                { Size = UDim2.new(State.StealProgress / 100, 0, 1, 0) })
+        end
+
+        -- distance display
+        if State.StealTarget and State.StealTarget.Character then
+            local ch  = State.StealTarget.Character
+            local me  = LocalPlayer.Character
+            if ch:FindFirstChild("HumanoidRootPart") and me and me:FindFirstChild("HumanoidRootPart") then
+                local d = (ch.HumanoidRootPart.Position - me.HumanoidRootPart.Position).Magnitude
+                distLabel.Text = ("%.1f studs"):format(d)
+            end
         end
     end
+end)
 
-    -- Test configuration system
-    local function testConfig()
-        -- Test save
-        generationFilterEnabled = true
-        minGeneration = "5M"
-        updateMinGenerationValue()
-        onlyJoinEnabled = true
-        onlyJoinBrainrots = {"TestBrainrot1", "TestBrainrot2"}
-        
-        saveConfig()
-        
-        -- Reset variables
-        generationFilterEnabled = false
-        minGeneration = ""
-        updateMinGenerationValue()
-        onlyJoinEnabled = false
-        onlyJoinBrainrots = {}
-        
-        -- Test load
-        loadConfig()
-        
-        addLogEntry("Configuration test completed")
-    end
+-- Breathing border animation
+RunService.Stepped:Connect(function(_, dt)
+    colorPhase = (colorPhase + dt * 60) % 360
+    local h = colorPhase / 360
+    local r, g, b = Color3.fromHSV(h, 0.7, 1):components()
+    Tween(bkBorder, TweenInfo.new(0.05), {
+        Color        = Color3.new(r, g, b),
+        Transparency = 0.3 + math.sin(colorPhase * 0.05) * 0.2,
+    })
+end)
 
-    -- Manual UI update function
-    local function forceUIUpdate()
-        
-        applyLoadedConfig()
-    end
+-- Star-field drift
+RunService.RenderStepped:Connect(function(dt)
+    starLayer.Position = UDim2.new(
+        0.5 + math.sin(tick() * 0.03) * 0.06, 0,
+        0.5 + math.cos(tick() * 0.025) * 0.06, 0
+    )
 
-    -- Safe initialization
-
-    task.spawn(function()
-        task.wait(2) -- Wait for game to fully load
-        local success = pcall(function()
-            safeInitialize()
-            
-            -- Apply configuration after everything is initialized
-            task.wait(2) -- Give everything time to fully initialize
-            applyConfigAfterGUI()
-        end)
-        
-        if not success then
-            addLogEntry("Initialization failed - retrying")
-            task.wait(5)
-            safeInitialize()
-            
-            -- Apply configuration after retry
-            task.wait(2)
-            applyConfigAfterGUI()
+    -- twinkle random stars
+    for _, star in ipairs(starLayer:GetChildren()) do
+        if star:IsA("Frame") then
+            star.BackgroundTransparency = 0.2 + math.abs(math.sin(tick() * rng:NextNumber(0.5, 2.5))) * 0.6
         end
+    end
+end)
+
+-- Re-scan when animals change
+if workspace:FindFirstChild("RenderedMovingAnimals") then
+    workspace.RenderedMovingAnimals.ChildAdded:Connect(function()
+        task.delay(0.5, ScanAnimals)
     end)
+    workspace.RenderedMovingAnimals.ChildRemoved:Connect(function()
+        task.delay(0.5, ScanAnimals)
+    end)
+end
+
+if workspace:FindFirstChild("Plots") then
+    workspace.Plots.ChildAdded:Connect(function()
+        task.delay(0.5, ScanAnimals)
+    end)
+    workspace.Plots.ChildRemoved:Connect(function()
+        task.delay(0.5, ScanAnimals)
+    end)
+end
+
+-- guard cleanup
+Players.PlayerRemoving:Connect(function(p)
+    if p == LocalPlayer then
+        HubGui:Destroy()
+        MiniGui:Destroy()
+        StealGui:Destroy()
+        UnlockGui:Destroy()
+        NotifGui:Destroy()
+    end
+end)
+
+HubGui:GetPropertyChangedSignal("Enabled"):Connect(function()
+    if not HubGui.Enabled then
+        HubGui.Enabled = true   -- keep it alive
+    end
+end)
+
+-- ─────────────────────────────────────────────────────────
+--  INIT
+-- ─────────────────────────────────────────────────────────
+print("[BK Hub v1.9] Executing…")
+print("[BK Hub v1.9] All API calls are logged.")
+
+-- scale to viewport
+local function UpdateScale()
+    local vp   = Camera.ViewportSize
+    local base = Vector2.new(1920, 1080)
+    local s    = math.min(vp.X / base.X, vp.Y / base.Y)
+    stealScale.Scale = s
+    miniScale.Scale  = s * 1.05
+end
+Camera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateScale)
+UpdateScale()
+
+-- initial scan (defer a frame)
+task.defer(ScanAnimals)
+
+ShowNotif("✓", "Scanner Ready", "success")
+print("[BK Hub v1.9] Initialised.")
