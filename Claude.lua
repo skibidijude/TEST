@@ -1,3 +1,5 @@
+-- LocalScript (place inside StarterPlayerScripts or StarterGui)
+
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
