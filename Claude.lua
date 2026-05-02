@@ -13,37 +13,103 @@ local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "LightHubIntro"
 screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.IgnoreGuiInset = true
 screenGui.Parent = playerGui
 
--- LIGHT label (NO background frame, floats over the game)
+-- LIGHT label — no frame, no background, floats directly over game world
 local lightLabel = Instance.new("TextLabel")
-lightLabel.Size = UDim2.new(1, 0, 0.3, 0)
-lightLabel.Position = UDim2.new(0, 0, 0.18, 0)
+lightLabel.Size = UDim2.new(0.85, 0, 0.22, 0)
+lightLabel.Position = UDim2.new(0.075, 0, 0.22, 0)
+lightLabel.AnchorPoint = Vector2.new(0, 0)
 lightLabel.BackgroundTransparency = 1
 lightLabel.Text = "LIGHT"
-lightLabel.Font = Enum.Font.GothamBlack        -- heaviest/boldest Gotham weight
+lightLabel.Font = Enum.Font.GothamBlack
 lightLabel.TextScaled = true
 lightLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-lightLabel.TextStrokeTransparency = 0.15       -- strong outline for crispness
+lightLabel.TextStrokeTransparency = 0.1
 lightLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 lightLabel.ZIndex = 10
-lightLabel.Parent = screenGui                  -- parented directly to ScreenGui, no frame
+lightLabel.Parent = screenGui
 
 -- HUB label
 local hubLabel = Instance.new("TextLabel")
-hubLabel.Size = UDim2.new(1, 0, 0.3, 0)
-hubLabel.Position = UDim2.new(0, 0, 0.48, 0)
+hubLabel.Size = UDim2.new(0.85, 0, 0.22, 0)
+hubLabel.Position = UDim2.new(0.075, 0, 0.52, 0)
+hubLabel.AnchorPoint = Vector2.new(0, 0)
 hubLabel.BackgroundTransparency = 1
 hubLabel.Text = "HUB"
 hubLabel.Font = Enum.Font.GothamBlack
 hubLabel.TextScaled = true
 hubLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-hubLabel.TextStrokeTransparency = 0.15
+hubLabel.TextStrokeTransparency = 0.1
 hubLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 hubLabel.ZIndex = 10
 hubLabel.Parent = screenGui
 
--- Rainbow color cycling
+-- =====================
+-- SHINE EFFECT (diagonal sweep frame for each label)
+-- =====================
+
+local function createShine(parent)
+	local shineHolder = Instance.new("Frame")
+	shineHolder.Size = UDim2.new(1, 0, 1, 0)
+	shineHolder.Position = UDim2.new(0, 0, 0, 0)
+	shineHolder.BackgroundTransparency = 1
+	shineHolder.ClipsDescendants = true
+	shineHolder.ZIndex = 12
+	shineHolder.Parent = parent
+
+	local shine = Instance.new("Frame")
+	shine.Size = UDim2.new(0.18, 0, 2, 0)
+	shine.Position = UDim2.new(-0.3, 0, -0.5, 0)
+	shine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	shine.BackgroundTransparency = 0.35
+	shine.BorderSizePixel = 0
+	shine.Rotation = 20
+	shine.ZIndex = 12
+	shine.Parent = shineHolder
+
+	-- Gradient on shine bar for soft edges
+	local grad = Instance.new("UIGradient")
+	grad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255,255,255)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255,255,255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(255,255,255)),
+	})
+	grad.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.5, 0.2),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	grad.Rotation = 0
+	grad.Parent = shine
+
+	return shine
+end
+
+local lightShine = createShine(lightLabel)
+local hubShine = createShine(hubLabel)
+
+-- Animate shine sweep repeatedly
+local function runShine(shine, label)
+	task.spawn(function()
+		while label.Parent do
+			shine.Position = UDim2.new(-0.35, 0, -0.5, 0)
+			TweenService:Create(shine, TweenInfo.new(0.55, Enum.EasingStyle.Linear), {
+				Position = UDim2.new(1.2, 0, -0.5, 0)
+			}):Play()
+			task.wait(2.2)
+		end
+	end)
+end
+
+runShine(lightShine, lightLabel)
+task.delay(1.1, function() runShine(hubShine, hubLabel) end)
+
+-- =====================
+-- RAINBOW + FLASH
+-- =====================
+
 local rainbowActive = true
 local flashActive = true
 local hue = 0
@@ -58,7 +124,6 @@ task.spawn(function()
 	end
 end)
 
--- Flashing effect
 task.spawn(function()
 	while flashActive do
 		lightLabel.Visible = not lightLabel.Visible
@@ -69,7 +134,10 @@ task.spawn(function()
 	hubLabel.Visible = true
 end)
 
--- After 8 seconds, stop flashing and slide out
+-- =====================
+-- AFTER 8 SECONDS: SLIDE OUT
+-- =====================
+
 task.wait(8)
 
 flashActive = false
@@ -78,27 +146,21 @@ task.wait(0.05)
 lightLabel.Visible = true
 hubLabel.Visible = true
 
--- Final rainbow color lock-in before slide
-local finalColor = Color3.fromHSV(hue / 360, 1, 1)
-lightLabel.TextColor3 = finalColor
-hubLabel.TextColor3 = finalColor
-
--- Slide LIGHT left, HUB right
 local tweenInfo = TweenInfo.new(0.75, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
 
 TweenService:Create(lightLabel, tweenInfo, {
-	Position = UDim2.new(-1.2, 0, 0.18, 0)
+	Position = UDim2.new(-1.2, 0, 0.22, 0)
 }):Play()
 
 TweenService:Create(hubLabel, tweenInfo, {
-	Position = UDim2.new(1.2, 0, 0.48, 0)
+	Position = UDim2.new(1.2, 0, 0.52, 0)
 }):Play()
 
 task.wait(0.85)
 screenGui:Destroy()
 
 -- =====================
--- PART 2: OVERHEAD GUI
+-- PART 2: OVERHEAD TAG
 -- =====================
 
 task.spawn(function()
