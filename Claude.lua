@@ -62,7 +62,7 @@ task.delay(4.5, function()
 	}):Play()
 end)
 
-task.delay(6.2, function()
+task.delay(6.5, function()
 	sound:Stop()
 	sound:Destroy()
 end)
@@ -85,11 +85,11 @@ task.spawn(function()
 end)
 
 -- =====================
--- FLASH HELPER: intense rapid flicker then settle
+-- INTENSE FLICKER HELPER (blocking — waits until done)
 -- =====================
 
-local function intenseFlash(label, times, speed)
-	for i = 1, times do
+local function flickerIn(label, flashes, speed)
+	for i = 1, flashes do
 		label.Visible = false
 		task.wait(speed)
 		label.Visible = true
@@ -98,8 +98,8 @@ local function intenseFlash(label, times, speed)
 end
 
 -- =====================
--- PHASE 1: SPELL OUT "LIGHT" LETTER BY LETTER
--- Each new letter flashes in with intensity
+-- PHASE 1: SPELL "LIGHT" FULLY, THEN "HUB" FULLY
+-- Each letter flickers intensely on reveal, blocking so order is guaranteed
 -- =====================
 
 local lightWord = "LIGHT"
@@ -108,52 +108,36 @@ local hubWord   = "HUB"
 lightLabel.Visible = true
 hubLabel.Visible   = true
 
--- Spell LIGHT — each letter flashes rapidly on reveal
+-- Spell L I G H T  one letter at a time, each with flicker
 for i = 1, #lightWord do
 	lightLabel.Text = string.sub(lightWord, 1, i)
-	-- intense rapid flicker on new letter appearing
-	task.spawn(function()
-		for f = 1, 5 do
-			lightLabel.Visible = false
-			task.wait(0.04)
-			lightLabel.Visible = true
-			task.wait(0.04)
-		end
-	end)
-	task.wait(0.42)  -- gap between each letter
+	flickerIn(lightLabel, 5, 0.04)   -- 5 rapid flashes, blocking
+	task.wait(0.18)                   -- brief settle before next letter
 end
 
--- brief pause after LIGHT is fully spelled
-task.wait(0.3)
+-- LIGHT is now fully spelled — short pause so it reads clearly
+task.wait(0.45)
 
--- Spell HUB — same effect
+-- NOW spell H U B
 for i = 1, #hubWord do
 	hubLabel.Text = string.sub(hubWord, 1, i)
-	task.spawn(function()
-		for f = 1, 5 do
-			hubLabel.Visible = false
-			task.wait(0.04)
-			hubLabel.Visible = true
-			task.wait(0.04)
-		end
-	end)
-	task.wait(0.42)
+	flickerIn(hubLabel, 5, 0.04)
+	task.wait(0.18)
 end
 
--- pause so both words sit fully visible a moment
+-- Both fully spelled — pause so player reads it
 task.wait(0.4)
 
 -- =====================
--- PHASE 2: INTENSE FULL FLASH BOTH WORDS, SPEEDING UP (2 seconds)
+-- PHASE 2: INTENSE STROBE, RAMPING FASTER (2 seconds)
 -- =====================
 
 local fastFlashActive = true
 local flashSpeed = 0.12
 
--- ramp speed up over 2 seconds
 task.spawn(function()
 	for i = 1, 40 do
-		flashSpeed = 0.12 - (i / 40) * 0.09  -- 0.12 down to 0.03
+		flashSpeed = 0.12 - (i / 40) * 0.09  -- ramps from 0.12 to 0.03
 		task.wait(0.05)
 	end
 end)
@@ -172,7 +156,7 @@ end)
 task.wait(2)
 
 -- =====================
--- STOP FLASH, CLEAN PAUSE, SLIDE OUT
+-- STOP FLASH, PAUSE, SLIDE OUT
 -- =====================
 
 fastFlashActive = false
