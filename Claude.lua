@@ -17,7 +17,6 @@ screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.IgnoreGuiInset = true
 screenGui.Parent = playerGui
 
--- LIGHT label
 local lightLabel = Instance.new("TextLabel")
 lightLabel.Size = UDim2.new(0.95, 0, 0.24, 0)
 lightLabel.Position = UDim2.new(0.5, 0, 0.33, 0)
@@ -32,7 +31,6 @@ lightLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 lightLabel.ZIndex = 10
 lightLabel.Parent = screenGui
 
--- HUB label
 local hubLabel = Instance.new("TextLabel")
 hubLabel.Size = UDim2.new(0.95, 0, 0.24, 0)
 hubLabel.Position = UDim2.new(0.5, 0, 0.63, 0)
@@ -48,12 +46,12 @@ hubLabel.ZIndex = 10
 hubLabel.Parent = screenGui
 
 -- =====================
--- TYPEWRITER SOUND
+-- SOUND
 -- =====================
 
 local sound = Instance.new("Sound")
 sound.SoundId = "rbxassetid://6042053626"
-sound.Volume = 1.0
+sound.Volume = 0.35  -- quieter
 sound.Looped = true
 sound.Parent = SoundService
 sound:Play()
@@ -87,68 +85,88 @@ task.spawn(function()
 end)
 
 -- =====================
--- PHASE 1: TYPE IN LETTER BY LETTER (3 seconds total)
--- Both words typed simultaneously, letter by letter, slow
+-- PHASE 1: EACH FLASH REVEALS A NEW LETTER (3 seconds)
+-- On each visible flash, one more letter appears
+-- "" -> "L" -> "LI" -> "LIG" -> "LIGH" -> "LIGHT"
+-- "" -> "H" -> "HU" -> "HUB"
 -- =====================
 
 local lightWord = "LIGHT"
 local hubWord   = "HUB"
 local maxLetters = math.max(#lightWord, #hubWord)
-local typeDelay = 3 / maxLetters  -- spread across 3 seconds
 
--- Flash while typing
+-- We want to reveal maxLetters letters across 3 seconds
+-- Each letter reveal = one flash cycle (visible + hidden)
+local flashInterval = 3 / maxLetters  -- time per letter step
+local letterIndex = 0
+local flashOn = true
 local flashActive = true
-local flashSpeed = 0.35
 
+-- Flash loop: each ON phase shows one more letter
 task.spawn(function()
 	while flashActive do
-		lightLabel.Visible = not lightLabel.Visible
-		hubLabel.Visible   = not hubLabel.Visible
-		task.wait(flashSpeed)
+		-- ON: show current letters
+		lightLabel.Visible = true
+		hubLabel.Visible   = true
+		task.wait(flashInterval * 0.5)
+
+		if not flashActive then break end
+
+		-- OFF: hide labels briefly, and advance letter count
+		lightLabel.Visible = false
+		hubLabel.Visible   = false
+		letterIndex = math.min(letterIndex + 1, maxLetters)
+		lightLabel.Text = string.sub(lightWord, 1, math.min(letterIndex, #lightWord))
+		hubLabel.Text   = string.sub(hubWord,   1, math.min(letterIndex, #hubWord))
+		task.wait(flashInterval * 0.5)
 	end
-	lightLabel.Visible = true
-	hubLabel.Visible   = true
 end)
 
--- Type letters in slowly
-for i = 1, maxLetters do
-	lightLabel.Text = string.sub(lightWord, 1, math.min(i, #lightWord))
-	hubLabel.Text   = string.sub(hubWord,   1, math.min(i, #hubWord))
-	task.wait(typeDelay)
-end
+task.wait(3)
+
+-- Make sure full words are shown after phase 1
+lightLabel.Text = lightWord
+hubLabel.Text   = hubWord
+lightLabel.Visible = true
+hubLabel.Visible   = true
 
 -- =====================
--- PHASE 2: FAST FLASH for 2 seconds
+-- PHASE 2: FAST FLASHING for 2 seconds, speeding up
 -- =====================
 
-flashSpeed = 0.35
+local fastFlashActive = true
+local fastFlashSpeed = 0.18
 
--- Gradually speed up flash over 2 seconds
 task.spawn(function()
+	-- Speed up gradually
 	local steps = 20
-	local elapsed = 0
-	local duration = 2
-	while elapsed < duration and flashActive do
-		local t = elapsed / duration
-		flashSpeed = 0.35 - (t * 0.28) -- goes from 0.35 down to 0.07
-		elapsed = elapsed + 0.1
+	for i = 1, steps do
+		fastFlashSpeed = 0.18 - (i / steps) * 0.13  -- 0.18 down to 0.05
 		task.wait(0.1)
+	end
+end)
+
+task.spawn(function()
+	while fastFlashActive do
+		lightLabel.Visible = not lightLabel.Visible
+		hubLabel.Visible   = not hubLabel.Visible
+		task.wait(fastFlashSpeed)
 	end
 end)
 
 task.wait(2)
 
 -- =====================
--- STOP FLASH, THEN SLIDE OUT
+-- STOP EVERYTHING, CLEAN PAUSE, SLIDE OUT
 -- =====================
 
-flashActive = false
+flashActive     = false
+fastFlashActive = false
+rainbowActive   = false
+
 task.wait(0.05)
 lightLabel.Visible = true
 hubLabel.Visible   = true
-rainbowActive = false
-
--- Small pause so last frame looks clean before slide
 task.wait(0.15)
 
 local slideOut = TweenInfo.new(0.75, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
