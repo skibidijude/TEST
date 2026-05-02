@@ -2,6 +2,7 @@
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
+local SoundService = game:GetService("SoundService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
@@ -29,7 +30,6 @@ lightLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 lightLabel.TextStrokeTransparency = 0.1
 lightLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 lightLabel.ZIndex = 10
-lightLabel.ClipsDescendants = true  -- shine is clipped INSIDE the label bounds
 lightLabel.Parent = screenGui
 
 -- HUB label
@@ -45,55 +45,32 @@ hubLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 hubLabel.TextStrokeTransparency = 0.1
 hubLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 hubLabel.ZIndex = 10
-hubLabel.ClipsDescendants = true  -- shine clipped inside label
 hubLabel.Parent = screenGui
 
 -- =====================
--- SHINE EFFECT (clipped inside each label)
+-- TYPEWRITER SOUND
 -- =====================
 
-local function createShine(parent)
-	local shine = Instance.new("Frame")
-	shine.Size = UDim2.new(0.15, 0, 2.5, 0)
-	shine.Position = UDim2.new(-0.25, 0, -0.75, 0)
-	shine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	shine.BackgroundTransparency = 0.0
-	shine.BorderSizePixel = 0
-	shine.Rotation = 18
-	shine.ZIndex = 13
-	shine.Parent = parent  -- parented directly to the label so ClipsDescendants cuts it
+local sound = Instance.new("Sound")
+sound.SoundId = "rbxassetid://6042053626" -- Roblox typewriter/keyboard click sound
+sound.Volume = 1.0
+sound.Looped = true
+sound.RollOffMaxDistance = 10000
+sound.Parent = SoundService
+sound:Play()
 
-	local grad = Instance.new("UIGradient")
-	grad.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0,   1),
-		NumberSequenceKeypoint.new(0.4, 0.15),
-		NumberSequenceKeypoint.new(0.5, 0.0),
-		NumberSequenceKeypoint.new(0.6, 0.15),
-		NumberSequenceKeypoint.new(1,   1),
-	})
-	grad.Rotation = 90
-	grad.Parent = shine
+-- Fade out sound over last 1.5 seconds (starting at 4.5s mark)
+task.delay(4.5, function()
+	TweenService:Create(sound, TweenInfo.new(1.5, Enum.EasingStyle.Linear), {
+		Volume = 0
+	}):Play()
+end)
 
-	return shine
-end
-
-local lightShine = createShine(lightLabel)
-local hubShine   = createShine(hubLabel)
-
-local function runShine(shine, label)
-	task.spawn(function()
-		while label.Parent do
-			shine.Position = UDim2.new(-0.25, 0, -0.75, 0)
-			TweenService:Create(shine, TweenInfo.new(0.5, Enum.EasingStyle.Linear), {
-				Position = UDim2.new(1.1, 0, -0.75, 0)
-			}):Play()
-			task.wait(2.0)
-		end
-	end)
-end
-
-runShine(lightShine, lightLabel)
-task.delay(1.0, function() runShine(hubShine, hubLabel) end)
+-- Stop and clean up sound after 6 seconds
+task.delay(6.1, function()
+	sound:Stop()
+	sound:Destroy()
+end)
 
 -- =====================
 -- RAINBOW + FLASH
