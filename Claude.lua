@@ -13,41 +13,39 @@ screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = playerGui
 
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(1, 0, 1, 0)
-frame.Position = UDim2.new(0, 0, 0, 0)
-frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-frame.BorderSizePixel = 0
-frame.Parent = screenGui
-
--- LIGHT label
+-- LIGHT label (NO background frame, floats over the game)
 local lightLabel = Instance.new("TextLabel")
-lightLabel.Size = UDim2.new(1, 0, 0.35, 0)
-lightLabel.Position = UDim2.new(0, 0, 0.25, 0)
+lightLabel.Size = UDim2.new(1, 0, 0.3, 0)
+lightLabel.Position = UDim2.new(0, 0, 0.18, 0)
 lightLabel.BackgroundTransparency = 1
 lightLabel.Text = "LIGHT"
-lightLabel.Font = Enum.Font.GothamBold
+lightLabel.Font = Enum.Font.GothamBlack        -- heaviest/boldest Gotham weight
 lightLabel.TextScaled = true
 lightLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-lightLabel.Parent = frame
+lightLabel.TextStrokeTransparency = 0.15       -- strong outline for crispness
+lightLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+lightLabel.ZIndex = 10
+lightLabel.Parent = screenGui                  -- parented directly to ScreenGui, no frame
 
 -- HUB label
 local hubLabel = Instance.new("TextLabel")
-hubLabel.Size = UDim2.new(1, 0, 0.35, 0)
-hubLabel.Position = UDim2.new(0, 0, 0.52, 0)
+hubLabel.Size = UDim2.new(1, 0, 0.3, 0)
+hubLabel.Position = UDim2.new(0, 0, 0.48, 0)
 hubLabel.BackgroundTransparency = 1
 hubLabel.Text = "HUB"
-hubLabel.Font = Enum.Font.GothamBold
+hubLabel.Font = Enum.Font.GothamBlack
 hubLabel.TextScaled = true
 hubLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-hubLabel.Parent = frame
+hubLabel.TextStrokeTransparency = 0.15
+hubLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+hubLabel.ZIndex = 10
+hubLabel.Parent = screenGui
 
--- Rainbow + Flash logic
+-- Rainbow color cycling
 local rainbowActive = true
 local flashActive = true
 local hue = 0
 
--- Rainbow color cycling
 task.spawn(function()
 	while rainbowActive do
 		hue = (hue + 1) % 360
@@ -74,24 +72,27 @@ task.wait(8)
 
 flashActive = false
 rainbowActive = false
-task.wait(0.1)
+task.wait(0.05)
 lightLabel.Visible = true
 hubLabel.Visible = true
 
+-- Final rainbow color lock-in before slide
+local finalColor = Color3.fromHSV(hue / 360, 1, 1)
+lightLabel.TextColor3 = finalColor
+hubLabel.TextColor3 = finalColor
+
 -- Slide LIGHT left, HUB right
-local tweenInfo = TweenInfo.new(0.8, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+local tweenInfo = TweenInfo.new(0.75, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
 
-local lightTween = TweenService:Create(lightLabel, tweenInfo, {
-	Position = UDim2.new(-1.2, 0, 0.25, 0)
-})
-local hubTween = TweenService:Create(hubLabel, tweenInfo, {
-	Position = UDim2.new(1.2, 0, 0.52, 0)
-})
+TweenService:Create(lightLabel, tweenInfo, {
+	Position = UDim2.new(-1.2, 0, 0.18, 0)
+}):Play()
 
-lightTween:Play()
-hubTween:Play()
+TweenService:Create(hubLabel, tweenInfo, {
+	Position = UDim2.new(1.2, 0, 0.48, 0)
+}):Play()
 
-task.wait(0.9)
+task.wait(0.85)
 screenGui:Destroy()
 
 -- =====================
@@ -99,13 +100,12 @@ screenGui:Destroy()
 -- =====================
 
 task.spawn(function()
-	-- Wait for character
 	local character = player.Character or player.CharacterAdded:Wait()
 	local head = character:WaitForChild("Head")
 
 	local billboardGui = Instance.new("BillboardGui")
 	billboardGui.Name = "OverheadTag"
-	billboardGui.Size = UDim2.new(0, 220, 0, 50)
+	billboardGui.Size = UDim2.new(0, 230, 0, 50)
 	billboardGui.StudsOffset = Vector3.new(0, 2.5, 0)
 	billboardGui.AlwaysOnTop = false
 	billboardGui.Adornee = head
@@ -115,14 +115,13 @@ task.spawn(function()
 	tagLabel.Size = UDim2.new(1, 0, 1, 0)
 	tagLabel.BackgroundTransparency = 1
 	tagLabel.Text = ".gg/UpeQbF32qj"
-	tagLabel.Font = Enum.Font.GothamBold
+	tagLabel.Font = Enum.Font.GothamBlack
 	tagLabel.TextScaled = true
 	tagLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	tagLabel.TextStrokeTransparency = 0.4
+	tagLabel.TextStrokeTransparency = 0.3
 	tagLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 	tagLabel.Parent = billboardGui
 
-	-- Rainbow on overhead tag too
 	local tagHue = 0
 	while true do
 		tagHue = (tagHue + 1) % 360
