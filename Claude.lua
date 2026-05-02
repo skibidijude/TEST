@@ -17,11 +17,11 @@ screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.IgnoreGuiInset = true
 screenGui.Parent = playerGui
 
--- LIGHT label
+-- LIGHT label (starts invisible and small for swell-in)
 local lightLabel = Instance.new("TextLabel")
-lightLabel.Size = UDim2.new(0.85, 0, 0.22, 0)
-lightLabel.Position = UDim2.new(0.075, 0, 0.22, 0)
-lightLabel.AnchorPoint = Vector2.new(0, 0)
+lightLabel.Size = UDim2.new(0.01, 0, 0.01, 0)
+lightLabel.Position = UDim2.new(0.5, 0, 0.33, 0)
+lightLabel.AnchorPoint = Vector2.new(0.5, 0.5)
 lightLabel.BackgroundTransparency = 1
 lightLabel.Text = "LIGHT"
 lightLabel.Font = Enum.Font.GothamBlack
@@ -29,14 +29,15 @@ lightLabel.TextScaled = true
 lightLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 lightLabel.TextStrokeTransparency = 0.1
 lightLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+lightLabel.TextTransparency = 1
 lightLabel.ZIndex = 10
 lightLabel.Parent = screenGui
 
--- HUB label
+-- HUB label (starts invisible and small for swell-in)
 local hubLabel = Instance.new("TextLabel")
-hubLabel.Size = UDim2.new(0.85, 0, 0.22, 0)
-hubLabel.Position = UDim2.new(0.075, 0, 0.52, 0)
-hubLabel.AnchorPoint = Vector2.new(0, 0)
+hubLabel.Size = UDim2.new(0.01, 0, 0.01, 0)
+hubLabel.Position = UDim2.new(0.5, 0, 0.63, 0)
+hubLabel.AnchorPoint = Vector2.new(0.5, 0.5)
 hubLabel.BackgroundTransparency = 1
 hubLabel.Text = "HUB"
 hubLabel.Font = Enum.Font.GothamBlack
@@ -44,60 +45,78 @@ hubLabel.TextScaled = true
 hubLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 hubLabel.TextStrokeTransparency = 0.1
 hubLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+hubLabel.TextTransparency = 1
 hubLabel.ZIndex = 10
 hubLabel.Parent = screenGui
+
+-- =====================
+-- SWELL IN ANIMATION
+-- =====================
+
+-- LIGHT swells in first
+TweenService:Create(lightLabel, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+	Size = UDim2.new(0.95, 0, 0.24, 0),
+	TextTransparency = 0,
+}):Play()
+
+-- HUB swells in slightly after
+task.delay(0.2, function()
+	TweenService:Create(hubLabel, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = UDim2.new(0.95, 0, 0.24, 0),
+		TextTransparency = 0,
+	}):Play()
+end)
 
 -- =====================
 -- TYPEWRITER SOUND
 -- =====================
 
 local sound = Instance.new("Sound")
-sound.SoundId = "rbxassetid://6042053626" -- Roblox typewriter/keyboard click sound
+sound.SoundId = "rbxassetid://6042053626"
 sound.Volume = 1.0
 sound.Looped = true
-sound.RollOffMaxDistance = 10000
 sound.Parent = SoundService
 sound:Play()
 
--- Fade out sound over last 1.5 seconds (starting at 4.5s mark)
 task.delay(4.5, function()
 	TweenService:Create(sound, TweenInfo.new(1.5, Enum.EasingStyle.Linear), {
 		Volume = 0
 	}):Play()
 end)
 
--- Stop and clean up sound after 6 seconds
 task.delay(6.1, function()
 	sound:Stop()
 	sound:Destroy()
 end)
 
 -- =====================
--- RAINBOW + FLASH
+-- RAINBOW + FLASH (starts after swell finishes)
 -- =====================
 
 local rainbowActive = true
 local flashActive   = true
 local hue = 0
 
-task.spawn(function()
-	while rainbowActive do
-		hue = (hue + 1) % 360
-		local color = Color3.fromHSV(hue / 360, 1, 1)
-		lightLabel.TextColor3 = color
-		hubLabel.TextColor3   = color
-		task.wait(0.03)
-	end
-end)
+task.delay(0.85, function()
+	task.spawn(function()
+		while rainbowActive do
+			hue = (hue + 1) % 360
+			local color = Color3.fromHSV(hue / 360, 1, 1)
+			lightLabel.TextColor3 = color
+			hubLabel.TextColor3   = color
+			task.wait(0.03)
+		end
+	end)
 
-task.spawn(function()
-	while flashActive do
-		lightLabel.Visible = not lightLabel.Visible
-		hubLabel.Visible   = not hubLabel.Visible
-		task.wait(0.35)
-	end
-	lightLabel.Visible = true
-	hubLabel.Visible   = true
+	task.spawn(function()
+		while flashActive do
+			lightLabel.Visible = not lightLabel.Visible
+			hubLabel.Visible   = not hubLabel.Visible
+			task.wait(0.35)
+		end
+		lightLabel.Visible = true
+		hubLabel.Visible   = true
+	end)
 end)
 
 -- =====================
@@ -112,14 +131,14 @@ task.wait(0.05)
 lightLabel.Visible = true
 hubLabel.Visible   = true
 
-local tweenInfo = TweenInfo.new(0.75, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+local slideOut = TweenInfo.new(0.75, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
 
-TweenService:Create(lightLabel, tweenInfo, {
-	Position = UDim2.new(-1.2, 0, 0.22, 0)
+TweenService:Create(lightLabel, slideOut, {
+	Position = UDim2.new(-0.6, 0, 0.33, 0)
 }):Play()
 
-TweenService:Create(hubLabel, tweenInfo, {
-	Position = UDim2.new(1.2, 0, 0.52, 0)
+TweenService:Create(hubLabel, slideOut, {
+	Position = UDim2.new(1.6, 0, 0.63, 0)
 }):Play()
 
 task.wait(0.85)
