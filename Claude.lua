@@ -7,7 +7,7 @@ local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 -- =====================
--- PART 1: INTRO SCREEN
+-- INTRO SCREEN
 -- =====================
 
 local screenGui = Instance.new("ScreenGui")
@@ -17,55 +17,35 @@ screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.IgnoreGuiInset = true
 screenGui.Parent = playerGui
 
--- LIGHT label (starts invisible and small for swell-in)
+-- LIGHT label
 local lightLabel = Instance.new("TextLabel")
-lightLabel.Size = UDim2.new(0.01, 0, 0.01, 0)
+lightLabel.Size = UDim2.new(0.95, 0, 0.24, 0)
 lightLabel.Position = UDim2.new(0.5, 0, 0.33, 0)
 lightLabel.AnchorPoint = Vector2.new(0.5, 0.5)
 lightLabel.BackgroundTransparency = 1
-lightLabel.Text = "LIGHT"
+lightLabel.Text = ""
 lightLabel.Font = Enum.Font.GothamBlack
 lightLabel.TextScaled = true
 lightLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 lightLabel.TextStrokeTransparency = 0.1
 lightLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-lightLabel.TextTransparency = 1
 lightLabel.ZIndex = 10
 lightLabel.Parent = screenGui
 
--- HUB label (starts invisible and small for swell-in)
+-- HUB label
 local hubLabel = Instance.new("TextLabel")
-hubLabel.Size = UDim2.new(0.01, 0, 0.01, 0)
+hubLabel.Size = UDim2.new(0.95, 0, 0.24, 0)
 hubLabel.Position = UDim2.new(0.5, 0, 0.63, 0)
 hubLabel.AnchorPoint = Vector2.new(0.5, 0.5)
 hubLabel.BackgroundTransparency = 1
-hubLabel.Text = "HUB"
+hubLabel.Text = ""
 hubLabel.Font = Enum.Font.GothamBlack
 hubLabel.TextScaled = true
 hubLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 hubLabel.TextStrokeTransparency = 0.1
 hubLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-hubLabel.TextTransparency = 1
 hubLabel.ZIndex = 10
 hubLabel.Parent = screenGui
-
--- =====================
--- SWELL IN ANIMATION
--- =====================
-
--- LIGHT swells in first
-TweenService:Create(lightLabel, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-	Size = UDim2.new(0.95, 0, 0.24, 0),
-	TextTransparency = 0,
-}):Play()
-
--- HUB swells in slightly after
-task.delay(0.2, function()
-	TweenService:Create(hubLabel, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-		Size = UDim2.new(0.95, 0, 0.24, 0),
-		TextTransparency = 0,
-	}):Play()
-end)
 
 -- =====================
 -- TYPEWRITER SOUND
@@ -84,52 +64,92 @@ task.delay(4.5, function()
 	}):Play()
 end)
 
-task.delay(6.1, function()
+task.delay(6.2, function()
 	sound:Stop()
 	sound:Destroy()
 end)
 
 -- =====================
--- RAINBOW + FLASH (starts after swell finishes)
+-- RAINBOW CYCLE
 -- =====================
 
-local rainbowActive = true
-local flashActive   = true
 local hue = 0
+local rainbowActive = true
 
-task.delay(0.85, function()
-	task.spawn(function()
-		while rainbowActive do
-			hue = (hue + 1) % 360
-			local color = Color3.fromHSV(hue / 360, 1, 1)
-			lightLabel.TextColor3 = color
-			hubLabel.TextColor3   = color
-			task.wait(0.03)
-		end
-	end)
-
-	task.spawn(function()
-		while flashActive do
-			lightLabel.Visible = not lightLabel.Visible
-			hubLabel.Visible   = not hubLabel.Visible
-			task.wait(0.35)
-		end
-		lightLabel.Visible = true
-		hubLabel.Visible   = true
-	end)
+task.spawn(function()
+	while rainbowActive do
+		hue = (hue + 1) % 360
+		local color = Color3.fromHSV(hue / 360, 1, 1)
+		lightLabel.TextColor3 = color
+		hubLabel.TextColor3 = color
+		task.wait(0.03)
+	end
 end)
 
 -- =====================
--- AFTER 6 SECONDS: SLIDE OUT
+-- PHASE 1: TYPE IN LETTER BY LETTER (3 seconds total)
+-- Both words typed simultaneously, letter by letter, slow
 -- =====================
 
-task.wait(6)
+local lightWord = "LIGHT"
+local hubWord   = "HUB"
+local maxLetters = math.max(#lightWord, #hubWord)
+local typeDelay = 3 / maxLetters  -- spread across 3 seconds
 
-flashActive   = false
-rainbowActive = false
+-- Flash while typing
+local flashActive = true
+local flashSpeed = 0.35
+
+task.spawn(function()
+	while flashActive do
+		lightLabel.Visible = not lightLabel.Visible
+		hubLabel.Visible   = not hubLabel.Visible
+		task.wait(flashSpeed)
+	end
+	lightLabel.Visible = true
+	hubLabel.Visible   = true
+end)
+
+-- Type letters in slowly
+for i = 1, maxLetters do
+	lightLabel.Text = string.sub(lightWord, 1, math.min(i, #lightWord))
+	hubLabel.Text   = string.sub(hubWord,   1, math.min(i, #hubWord))
+	task.wait(typeDelay)
+end
+
+-- =====================
+-- PHASE 2: FAST FLASH for 2 seconds
+-- =====================
+
+flashSpeed = 0.35
+
+-- Gradually speed up flash over 2 seconds
+task.spawn(function()
+	local steps = 20
+	local elapsed = 0
+	local duration = 2
+	while elapsed < duration and flashActive do
+		local t = elapsed / duration
+		flashSpeed = 0.35 - (t * 0.28) -- goes from 0.35 down to 0.07
+		elapsed = elapsed + 0.1
+		task.wait(0.1)
+	end
+end)
+
+task.wait(2)
+
+-- =====================
+-- STOP FLASH, THEN SLIDE OUT
+-- =====================
+
+flashActive = false
 task.wait(0.05)
 lightLabel.Visible = true
 hubLabel.Visible   = true
+rainbowActive = false
+
+-- Small pause so last frame looks clean before slide
+task.wait(0.15)
 
 local slideOut = TweenInfo.new(0.75, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
 
@@ -145,7 +165,7 @@ task.wait(0.85)
 screenGui:Destroy()
 
 -- =====================
--- PART 2: OVERHEAD TAG
+-- OVERHEAD TAG
 -- =====================
 
 task.spawn(function()
