@@ -16,7 +16,7 @@ screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.IgnoreGuiInset = true
 screenGui.Parent = playerGui
 
--- LIGHT label — no frame, no background, floats directly over game world
+-- LIGHT label
 local lightLabel = Instance.new("TextLabel")
 lightLabel.Size = UDim2.new(0.85, 0, 0.22, 0)
 lightLabel.Position = UDim2.new(0.075, 0, 0.22, 0)
@@ -29,6 +29,7 @@ lightLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 lightLabel.TextStrokeTransparency = 0.1
 lightLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 lightLabel.ZIndex = 10
+lightLabel.ClipsDescendants = true  -- shine is clipped INSIDE the label bounds
 lightLabel.Parent = screenGui
 
 -- HUB label
@@ -44,74 +45,62 @@ hubLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 hubLabel.TextStrokeTransparency = 0.1
 hubLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 hubLabel.ZIndex = 10
+hubLabel.ClipsDescendants = true  -- shine clipped inside label
 hubLabel.Parent = screenGui
 
 -- =====================
--- SHINE EFFECT (diagonal sweep frame for each label)
+-- SHINE EFFECT (clipped inside each label)
 -- =====================
 
 local function createShine(parent)
-	local shineHolder = Instance.new("Frame")
-	shineHolder.Size = UDim2.new(1, 0, 1, 0)
-	shineHolder.Position = UDim2.new(0, 0, 0, 0)
-	shineHolder.BackgroundTransparency = 1
-	shineHolder.ClipsDescendants = true
-	shineHolder.ZIndex = 12
-	shineHolder.Parent = parent
-
 	local shine = Instance.new("Frame")
-	shine.Size = UDim2.new(0.18, 0, 2, 0)
-	shine.Position = UDim2.new(-0.3, 0, -0.5, 0)
+	shine.Size = UDim2.new(0.15, 0, 2.5, 0)
+	shine.Position = UDim2.new(-0.25, 0, -0.75, 0)
 	shine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	shine.BackgroundTransparency = 0.35
+	shine.BackgroundTransparency = 0.0
 	shine.BorderSizePixel = 0
-	shine.Rotation = 20
-	shine.ZIndex = 12
-	shine.Parent = shineHolder
+	shine.Rotation = 18
+	shine.ZIndex = 13
+	shine.Parent = parent  -- parented directly to the label so ClipsDescendants cuts it
 
-	-- Gradient on shine bar for soft edges
 	local grad = Instance.new("UIGradient")
-	grad.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(255,255,255)),
-		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255,255,255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(255,255,255)),
-	})
 	grad.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 1),
-		NumberSequenceKeypoint.new(0.5, 0.2),
-		NumberSequenceKeypoint.new(1, 1),
+		NumberSequenceKeypoint.new(0,   1),
+		NumberSequenceKeypoint.new(0.4, 0.15),
+		NumberSequenceKeypoint.new(0.5, 0.0),
+		NumberSequenceKeypoint.new(0.6, 0.15),
+		NumberSequenceKeypoint.new(1,   1),
 	})
-	grad.Rotation = 0
+	grad.Rotation = 90
 	grad.Parent = shine
 
 	return shine
 end
 
 local lightShine = createShine(lightLabel)
-local hubShine = createShine(hubLabel)
+local hubShine   = createShine(hubLabel)
 
--- Animate shine sweep repeatedly
 local function runShine(shine, label)
 	task.spawn(function()
 		while label.Parent do
-			shine.Position = UDim2.new(-0.35, 0, -0.5, 0)
-			TweenService:Create(shine, TweenInfo.new(0.55, Enum.EasingStyle.Linear), {
-				Position = UDim2.new(1.2, 0, -0.5, 0)
+			shine.Position = UDim2.new(-0.25, 0, -0.75, 0)
+			TweenService:Create(shine, TweenInfo.new(0.5, Enum.EasingStyle.Linear), {
+				Position = UDim2.new(1.1, 0, -0.75, 0)
 			}):Play()
-			task.wait(2.2)
+			task.wait(2.0)
 		end
 	end)
 end
 
 runShine(lightShine, lightLabel)
-task.delay(1.1, function() runShine(hubShine, hubLabel) end)
+task.delay(1.0, function() runShine(hubShine, hubLabel) end)
 
 -- =====================
 -- RAINBOW + FLASH
 -- =====================
 
 local rainbowActive = true
-local flashActive = true
+local flashActive   = true
 local hue = 0
 
 task.spawn(function()
@@ -119,7 +108,7 @@ task.spawn(function()
 		hue = (hue + 1) % 360
 		local color = Color3.fromHSV(hue / 360, 1, 1)
 		lightLabel.TextColor3 = color
-		hubLabel.TextColor3 = color
+		hubLabel.TextColor3   = color
 		task.wait(0.03)
 	end
 end)
@@ -127,24 +116,24 @@ end)
 task.spawn(function()
 	while flashActive do
 		lightLabel.Visible = not lightLabel.Visible
-		hubLabel.Visible = not hubLabel.Visible
+		hubLabel.Visible   = not hubLabel.Visible
 		task.wait(0.35)
 	end
 	lightLabel.Visible = true
-	hubLabel.Visible = true
+	hubLabel.Visible   = true
 end)
 
 -- =====================
--- AFTER 8 SECONDS: SLIDE OUT
+-- AFTER 6 SECONDS: SLIDE OUT
 -- =====================
 
-task.wait(8)
+task.wait(6)
 
-flashActive = false
+flashActive   = false
 rainbowActive = false
 task.wait(0.05)
 lightLabel.Visible = true
-hubLabel.Visible = true
+hubLabel.Visible   = true
 
 local tweenInfo = TweenInfo.new(0.75, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
 
