@@ -1,6 +1,6 @@
 task.spawn(function()
-    _G.BloodHub = {}
-    local C = _G.BloodHub
+    _G.LightHub = {}
+    local C = _G.LightHub
 
     -- Services
     C.Players = game:GetService("Players")
@@ -59,7 +59,7 @@ task.spawn(function()
     end
 
     -- Config
-    C.ConfigFileName = "Blood_Hub_Config_V1.json"
+    C.ConfigFileName = "Light_Hub_Config_V1.json"
     C.Enabled = {
         SpeedBoost = false, AntiRagdoll = false, SpinBot = false,
         SpeedWhileStealing = false, AutoSteal = false, Unwalk = false,
@@ -239,9 +239,9 @@ task.spawn(function()
     C.Color = {
         bg = Color3.fromRGB(12,12,15),
         sidebar = Color3.fromRGB(18,18,22),
-        primary = C.Themes["Crimson Red"].P,
-        primaryLight = C.Themes["Crimson Red"].L,
-        primaryDark = C.Themes["Crimson Red"].D,
+        primary = C.Themes["Royal Purple"].P,
+        primaryLight = C.Themes["Royal Purple"].L,
+        primaryDark = C.Themes["Royal Purple"].D,
         text = Color3.fromRGB(245,245,245),
         textMuted = Color3.fromRGB(130,130,140),
         elementBg = Color3.fromRGB(24,24,28),
@@ -379,7 +379,7 @@ task.spawn(function()
         local head = char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
         if not head then return end
         C.SpeedMeterGui = Instance.new("BillboardGui")
-        C.SpeedMeterGui.Name = "BloodHubSpeedMeter"
+        C.SpeedMeterGui.Name = "LightHubSpeedMeter"
         C.SpeedMeterGui.Adornee = head
         C.SpeedMeterGui.Size = UDim2.new(0,150,0,40)
         C.SpeedMeterGui.StudsOffset = Vector3.new(0,3.5,0)
@@ -1035,7 +1035,7 @@ task.spawn(function()
     function C.stopSpeedWhileStealing() if C.Connections.speedWhileStealing then C.Connections.speedWhileStealing:Disconnect() end end
 
     C.RadiusVisualizer = Instance.new("Part")
-    C.RadiusVisualizer.Name = "BloodHubRadiusVisualizer"
+    C.RadiusVisualizer.Name = "LightHubRadiusVisualizer"
     C.RadiusVisualizer.Shape = Enum.PartType.Cylinder
     C.RadiusVisualizer.CanCollide = false
     C.RadiusVisualizer.Anchored = true
@@ -1261,9 +1261,9 @@ task.spawn(function()
         if plr == C.Player or not plr.Character then return end
         local char = plr.Character
         local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp or char:FindFirstChild("BloodHubHitbox") then return end
+        if not hrp or char:FindFirstChild("LightHubHitbox") then return end
         local h = Instance.new("BoxHandleAdornment", char)
-        h.Name = "BloodHubHitbox"
+        h.Name = "LightHubHitbox"
         h.Adornee = hrp
         h.Size = Vector3.new(4,6,2)
         h.Color3 = Color3.fromRGB(255,0,50)
@@ -1271,7 +1271,7 @@ task.spawn(function()
         h.ZIndex = 10
         h.AlwaysOnTop = true
         local b = Instance.new("BillboardGui", char)
-        b.Name = "BloodHubName"
+        b.Name = "LightHubName"
         b.Adornee = char:FindFirstChild("Head") or hrp
         b.Size = UDim2.new(0,200,0,50)
         b.StudsOffset = Vector3.new(0,3,0)
@@ -1288,8 +1288,8 @@ task.spawn(function()
         if not state then
             for _, p in ipairs(C.Players:GetPlayers()) do
                 if p.Character then
-                    local hb = p.Character:FindFirstChild("BloodHubHitbox")
-                    local nm = p.Character:FindFirstChild("BloodHubName")
+                    local hb = p.Character:FindFirstChild("LightHubHitbox")
+                    local nm = p.Character:FindFirstChild("LightHubName")
                     if hb then hb:Destroy() end
                     if nm then nm:Destroy() end
                 end
@@ -1494,7 +1494,7 @@ task.spawn(function()
     C.removeAutoStealUI = function() end
     C.updateStealUIDisplay = function() end
 
-    print("Blood Hub - Part 1 loaded.")
+    print("Light Hub loaded.")
 end)
 -- Blood Hub x EclipseX – Full Merge (Updated)
 -- Standalone / Run after Part 1.
@@ -1602,7 +1602,7 @@ Keybinds={
     MobAutoL=Enum.KeyCode.Unknown, MobAutoR=Enum.KeyCode.Unknown
 }
 
-local aimbotHighlight=Instance.new("Highlight"); aimbotHighlight.Name="BloodHubAimbotESP"; aimbotHighlight.FillColor=Color3.fromRGB(255,0,50); aimbotHighlight.OutlineColor=Color3.fromRGB(255,255,255); aimbotHighlight.FillTransparency=0.5; aimbotHighlight.OutlineTransparency=0
+local aimbotHighlight=Instance.new("Highlight"); aimbotHighlight.Name="LightHubAimbotESP"; aimbotHighlight.FillColor=Color3.fromRGB(255,0,50); aimbotHighlight.OutlineColor=Color3.fromRGB(255,255,255); aimbotHighlight.FillTransparency=0.5; aimbotHighlight.OutlineTransparency=0
 pcall(function() aimbotHighlight.Parent=player:WaitForChild("PlayerGui") end)
 
 -- ====================== SAVE / LOAD ======================
@@ -1703,7 +1703,7 @@ local function stopGalaxy() galaxyEnabled=false; hopsEnabled=false; if galaxyVF 
 local function doHop() local h=getHRP(); local hh=getHum(); if not h or not hh then return end; if tick()-lastHop<HOP_COOLDOWN then return end; lastHop=tick(); if hh.FloorMaterial==Enum.Material.Air then h.AssemblyLinearVelocity=Vector3.new(h.AssemblyLinearVelocity.X,GALAXY_HOP,h.AssemblyLinearVelocity.Z) end end
 
 -- ====================== SPINBOT ======================
-local function startSpin() local c=player.Character; if not c then return end; local root=c:FindFirstChild("HumanoidRootPart"); if not root then return end; if spinBAV then spinBAV:Destroy() end; spinBAV=Instance.new("BodyAngularVelocity"); spinBAV.Name="BloodHubSpinBAV"; spinBAV.MaxTorque=Vector3.new(0,math.huge,0); spinBAV.AngularVelocity=Vector3.new(0,SPIN_SPEED,0); spinBAV.Parent=root end
+local function startSpin() local c=player.Character; if not c then return end; local root=c:FindFirstChild("HumanoidRootPart"); if not root then return end; if spinBAV then spinBAV:Destroy() end; spinBAV=Instance.new("BodyAngularVelocity"); spinBAV.Name="LightHubSpinBAV"; spinBAV.MaxTorque=Vector3.new(0,math.huge,0); spinBAV.AngularVelocity=Vector3.new(0,SPIN_SPEED,0); spinBAV.Parent=root end
 local function stopSpin() if spinBAV then spinBAV:Destroy(); spinBAV=nil end end
 
 -- ====================== LOCK ======================
@@ -1868,14 +1868,14 @@ player.CharacterAdded:Connect(function(c) task.wait(0.5); setupChar(c) end)
 task.spawn(function()
 
     local ScreenGui=Instance.new("ScreenGui",player:WaitForChild("PlayerGui"))
-    ScreenGui.Name="BloodHub_V1"; ScreenGui.ResetOnSpawn=false; ScreenGui.IgnoreGuiInset=true; ScreenGui.DisplayOrder=10
+    ScreenGui.Name="LightHub_V1"; ScreenGui.ResetOnSpawn=false; ScreenGui.IgnoreGuiInset=true; ScreenGui.DisplayOrder=10
 
     local PBGui=Instance.new("ScreenGui",player:WaitForChild("PlayerGui"))
-    PBGui.Name="BloodHub_ProgressBar"; PBGui.ResetOnSpawn=false; PBGui.IgnoreGuiInset=true; PBGui.DisplayOrder=5
+    PBGui.Name="LightHub_ProgressBar"; PBGui.ResetOnSpawn=false; PBGui.IgnoreGuiInset=true; PBGui.DisplayOrder=5
 
     local toggleMenuBtn=Instance.new("TextButton",ScreenGui)
     toggleMenuBtn.Size=UDim2.new(0,34,0,34); toggleMenuBtn.Position=UDim2.new(1,-142,0,10)
-    toggleMenuBtn.BackgroundColor3=Color3.fromRGB(18,18,22); toggleMenuBtn.Text="BH"
+    toggleMenuBtn.BackgroundColor3=Color3.fromRGB(18,18,22); toggleMenuBtn.Text="LH"
     toggleMenuBtn.TextColor3=Color3.fromRGB(255,20,55); toggleMenuBtn.Font=Enum.Font.GothamBlack
     toggleMenuBtn.TextSize=13; toggleMenuBtn.BackgroundTransparency=0.1; toggleMenuBtn.ZIndex=10
     Instance.new("UICorner",toggleMenuBtn).CornerRadius=UDim.new(0,9)
@@ -2017,7 +2017,7 @@ task.spawn(function()
 
     makeSectionHeader("DEFENSE")
     do
-        local row=Instance.new("Frame",scroll); row.Size=UDim2.new(1,0,0,28); row.BackgroundColor3=Color3.fromRGB(18,18,24); row.BorderSizePixel=0; row.LayoutOrder=nlo(); row.ZIndex=2
+        local row=Instance.new("Frame",scroll); row.Size=UDim2.new(1,0,0,28); row.BackgroundColor3=Color3.fromRGB(255, 255, 255); row.BorderSizePixel=0; row.LayoutOrder=nlo(); row.ZIndex=2
         local div=Instance.new("Frame",row); div.Size=UDim2.new(1,-6,0,1); div.Position=UDim2.new(0,3,1,-1); div.BackgroundColor3=Color3.fromRGB(30,30,40); div.BorderSizePixel=0; div.ZIndex=3
         local lbl=Instance.new("TextLabel",row); lbl.Size=UDim2.new(0,72,1,0); lbl.Position=UDim2.new(0,8,0,0); lbl.BackgroundTransparency=1; lbl.Text="Brainrot Def"; lbl.Font=Enum.Font.GothamSemibold; lbl.TextSize=9; lbl.TextColor3=Color3.fromRGB(215,215,215); lbl.TextXAlignment=Enum.TextXAlignment.Left; lbl.ZIndex=3
         local sideBtn=Instance.new("TextButton",row); sideBtn.Size=UDim2.new(0,34,0,15); sideBtn.Position=UDim2.new(1,-72,0.5,-7); sideBtn.BackgroundColor3=Color3.fromRGB(30,10,60); sideBtn.Text=brainrotDefenseSide=="left" and "LEFT" or "RIGHT"; sideBtn.TextColor3=Color3.fromRGB(200,140,255); sideBtn.Font=Enum.Font.GothamBold; sideBtn.TextSize=7; sideBtn.BorderSizePixel=0; sideBtn.ZIndex=6; Instance.new("UICorner",sideBtn).CornerRadius=UDim.new(0,4); Instance.new("UIStroke",sideBtn).Color=Color3.fromRGB(220,0,30)
@@ -2055,11 +2055,11 @@ task.spawn(function()
     -- ====================== PROGRESS BAR (draggable) ======================
     local PBC=Instance.new("Frame",PBGui)
     PBC.Size=UDim2.new(0,196,0,36); PBC.Position=UDim2.new(0.5,-98,1,-110)
-    PBC.BackgroundColor3=Color3.fromRGB(8,8,12); PBC.BackgroundTransparency=0.1; PBC.BorderSizePixel=0; PBC.Active=true
+    PBC.BackgroundColor3=Color3.fromRGB(255, 255, 255); PBC.BackgroundTransparency=0.1; PBC.BorderSizePixel=0; PBC.Active=true
     Instance.new("UICorner",PBC).CornerRadius=UDim.new(0,11)
     local pbs=Instance.new("UIStroke",PBC); pbs.Color=Color3.fromRGB(255,0,50); pbs.Thickness=1.5
-    local bloodHubText=Instance.new("TextLabel",PBC); bloodHubText.Size=UDim2.new(0.38,0,0.55,0); bloodHubText.Position=UDim2.new(0.62,0,0,3); bloodHubText.BackgroundTransparency=1; bloodHubText.Text="BLOOD HUB"; bloodHubText.TextColor3=Color3.fromRGB(255,255,255); bloodHubText.Font=Enum.Font.GothamBlack; bloodHubText.TextSize=11; bloodHubText.TextXAlignment=Enum.TextXAlignment.Right; bloodHubText.ZIndex=3
-    ProgressLabel=Instance.new("TextLabel",PBC); ProgressLabel.Size=UDim2.new(0.55,0,0.55,0); ProgressLabel.Position=UDim2.new(0,8,0,3); ProgressLabel.BackgroundTransparency=1; ProgressLabel.Text="READY"; ProgressLabel.TextColor3=Color3.fromRGB(220,220,220); ProgressLabel.Font=Enum.Font.GothamBold; ProgressLabel.TextSize=10; ProgressLabel.TextXAlignment=Enum.TextXAlignment.Left; ProgressLabel.ZIndex=3
+    local lightHubText=Instance.new("TextLabel",PBC); lightHubText.Size=UDim2.new(0.38,0,0.55,0); lightHubText.Position=UDim2.new(0.62,0,0,3); bloodHubText.BackgroundTransparency=1; bloodHubText.Text="Light HUB"; bloodHubText.TextColor3=Color3.fromRGB(4, 75, 79); lightHubText.Font=Enum.Font.GothamBlack; bloodHubText.TextSize=11; bloodHubText.TextXAlignment=Enum.TextXAlignment.Right; bloodHubText.ZIndex=3
+    ProgressLabel=Instance.new("TextLabel",PBC); ProgressLabel.Size=UDim2.new(0.55,0,0.55,0); ProgressLabel.Position=UDim2.new(0,8,0,3); ProgressLabel.BackgroundTransparency=1; ProgressLabel.Text="READY"; ProgressLabel.TextColor3=Color3.fromRGB(94, 75, 79); ProgressLabel.Font=Enum.Font.GothamBold; ProgressLabel.TextSize=10; ProgressLabel.TextXAlignment=Enum.TextXAlignment.Left; ProgressLabel.ZIndex=3
     ProgressPctLabel=Instance.new("TextLabel",PBC); ProgressPctLabel.Size=UDim2.new(0,0,0,0); ProgressPctLabel.Visible=false
     local pt=Instance.new("Frame",PBC); pt.Size=UDim2.new(0.9,0,0,5); pt.Position=UDim2.new(0.05,0,1,-10); pt.BackgroundColor3=Color3.fromRGB(15,2,2); pt.BorderSizePixel=0; pt.ZIndex=2; Instance.new("UICorner",pt).CornerRadius=UDim.new(1,0)
     ProgressBarFill=Instance.new("Frame",pt); ProgressBarFill.Size=UDim2.new(0,0,1,0); ProgressBarFill.BackgroundColor3=Color3.fromRGB(255,0,50); ProgressBarFill.BorderSizePixel=0; ProgressBarFill.ZIndex=3; Instance.new("UICorner",ProgressBarFill).CornerRadius=UDim.new(1,0)
@@ -2091,7 +2091,7 @@ task.spawn(function()
 
     -- ====================== MOBILE PANEL (draggable, smooth) ======================
     local PURPLE_ON=Color3.fromRGB(200,0,25); local BLACK_OFF=Color3.fromRGB(8,8,8)
-    local panelGui=Instance.new("ScreenGui",player:WaitForChild("PlayerGui")); panelGui.Name="BloodHub_MobilePanel"; panelGui.ResetOnSpawn=false; panelGui.IgnoreGuiInset=true; panelGui.ZIndexBehavior=Enum.ZIndexBehavior.Sibling; panelGui.DisplayOrder=8
+    local panelGui=Instance.new("ScreenGui",player:WaitForChild("PlayerGui")); panelGui.Name="LightHub_MobilePanel"; panelGui.ResetOnSpawn=false; panelGui.IgnoreGuiInset=true; panelGui.ZIndexBehavior=Enum.ZIndexBehavior.Sibling; panelGui.DisplayOrder=8
 
     local panelFrame=Instance.new("Frame",panelGui); panelFrame.Name="MobilePanel"; panelFrame.Size=UDim2.new(0,120,0,232); panelFrame.Position=UDim2.new(1,-128,0.5,-116); panelFrame.BackgroundColor3=Color3.fromRGB(4,4,6); panelFrame.BackgroundTransparency=0.05; panelFrame.BorderSizePixel=0; panelFrame.Active=true; panelFrame.ZIndex=20
     Instance.new("UICorner",panelFrame).CornerRadius=UDim.new(0,14)
@@ -2125,7 +2125,7 @@ task.spawn(function()
         end
     end)
 
-    local panelTitle=Instance.new("TextLabel",panelFrame); panelTitle.Size=UDim2.new(1,-4,0,12); panelTitle.Position=UDim2.new(0,2,0,2); panelTitle.BackgroundTransparency=1; panelTitle.Text="BLOOD HUB"; panelTitle.Font=Enum.Font.LuckiestGuy; panelTitle.TextSize=8; panelTitle.TextColor3=Color3.fromRGB(255,0,50); panelTitle.TextXAlignment=Enum.TextXAlignment.Center; panelTitle.ZIndex=26
+    local panelTitle=Instance.new("TextLabel",panelFrame); panelTitle.Size=UDim2.new(1,-4,0,12); panelTitle.Position=UDim2.new(0,2,0,2); panelTitle.BackgroundTransparency=1; panelTitle.Text="LIGHT HUB"; panelTitle.Font=Enum.Font.PatrickHand; panelTitle.TextSize=8; panelTitle.TextColor3=Color3.fromRGB(255,0,50); panelTitle.TextXAlignment=Enum.TextXAlignment.Center; panelTitle.ZIndex=26
     task.spawn(function() local t=0; while panelTitle and panelTitle.Parent do t=t+0.05; local p=(math.sin(t*2)+1)/2; panelTitle.TextColor3=Color3.fromRGB(255,math.floor(p*30),math.floor(p*30)); task.wait(0.05) end end)
 
     local btnGrid=Instance.new("Frame",panelFrame); btnGrid.Size=UDim2.new(1,-8,0,212); btnGrid.Position=UDim2.new(0,4,0,15); btnGrid.BackgroundTransparency=1; btnGrid.ZIndex=21
@@ -2210,5 +2210,5 @@ task.spawn(function()
     if goodAnimEnabled then task.spawn(startGoodAnim) end
     if medusaCounterEnabled then task.spawn(function() task.wait(1); setupMedusaCounter(player.Character) end) end
 
-    print("Blood Hub loaded.")
+    print("Light Hub V1 loaded.")
 end)
