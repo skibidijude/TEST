@@ -1,178 +1,225 @@
--- Hapus GUI lama jika ada
-pcall(function() game.CoreGui:FindFirstChild("PremiumDeliveryGUI"):Destroy() end)
+local FFlags = {
 
--- Ambil service dan data pemain
-local CoreGui = game:GetService("CoreGui")
+    GameNetPVHeaderRotationalVelocityZeroCutoffExponent = -5000,
+
+    LargeReplicatorWrite5 = true,
+
+    LargeReplicatorEnabled9 = true,
+
+    AngularVelociryLimit = 360,
+
+    TimestepArbiterVelocityCriteriaThresholdTwoDt = 2147483646,
+
+    S2PhysicsSenderRate = 15000,
+
+    DisableDPIScale = true,
+
+    MaxDataPacketPerSend = 2147483647,
+
+    PhysicsSenderMaxBandwidthBps = 20000,
+
+    TimestepArbiterHumanoidLinearVelThreshold = 21,
+
+    MaxMissedWorldStepsRemembered = -2147483648,
+
+    PlayerHumanoidPropertyUpdateRestrict = true,
+
+    SimDefaultHumanoidTimestepMultiplier = 0,
+
+    StreamJobNOUVolumeLengthCap = 2147483647,
+
+    DebugSendDistInSteps = -2147483648,
+
+    GameNetDontSendRedundantNumTimes = 1,
+
+    CheckPVLinearVelocityIntegrateVsDeltaPositionThresholdPercent = 1,
+
+    CheckPVDifferencesForInterpolationMinVelThresholdStudsPerSecHundredth = 1,
+
+    LargeReplicatorSerializeRead3 = true,
+
+    ReplicationFocusNouExtentsSizeCutoffForPauseStuds = 2147483647,
+
+    CheckPVCachedVelThresholdPercent = 10,
+
+    CheckPVDifferencesForInterpolationMinRotVelThresholdRadsPerSecHundredth = 1,
+
+    GameNetDontSendRedundantDeltaPositionMillionth = 1,
+
+    InterpolationFrameVelocityThresholdMillionth = 5,
+
+    StreamJobNOUVolumeCap = 2147483647,
+
+    InterpolationFrameRotVelocityThresholdMillionth = 5,
+
+    CheckPVCachedRotVelThresholdPercent = 10,
+
+    WorldStepMax = 30,
+
+    InterpolationFramePositionThresholdMillionth = 5,
+
+    TimestepArbiterHumanoidTurningVelThreshold = 1,
+
+    SimOwnedNOUCountThresholdMillionth = 2147483647,
+
+    GameNetPVHeaderLinearVelocityZeroCutoffExponent = -5000,
+
+    NextGenReplicatorEnabledWrite4 = true,
+
+    TimestepArbiterOmegaThou = 1073741823,
+
+    MaxAcceptableUpdateDelay = 1,
+
+    LargeReplicatorSerializeWrite4 = true
+
+}
+
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
+
 local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
-local plots = workspace:WaitForChild("Plots")
 
--- GUI Setup
-local gui = Instance.new("ScreenGui", CoreGui)
-gui.Name = "PremiumDeliveryGUI"
-gui.ResetOnSpawn = false
+local function respawnar(plr)
 
-local frame = Instance.new("Frame")
-frame.Name = "MainFrame"
-frame.Size = UDim2.new(0, 192, 0, 88) -- 20% lebih kecil dari 240x110
-frame.Position = UDim2.new(0, 30, 0.4, 0)
-frame.BackgroundColor3 = Color3.fromRGB(24, 24, 26)
-frame.BorderSizePixel = 0
-frame.BackgroundTransparency = 0.02
-frame.Parent = gui
-frame.Active = true
-frame.Draggable = true
+    local rcdEnabled, wasHidden = false, false
 
-Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+    if gethidden then
 
-local stroke = Instance.new("UIStroke", frame)
-stroke.Color = Color3.fromRGB(0, 180, 255)
-stroke.Thickness = 1.6
-stroke.Transparency = 0.1
+        rcdEnabled, wasHidden = gethidden(workspace, 'RejectCharacterDeletions')
 
-local title = Instance.new("TextLabel", frame)
-title.Name = "TitleLabel"
-title.Size = UDim2.new(1, 0, 0, 24)
-title.Position = UDim2.new(0, 0, 0, 0)
-title.BackgroundTransparency = 1
-title.Text = "Instan Steal"
-title.Font = Enum.Font.GothamBlack
-title.TextColor3 = Color3.fromRGB(230, 230, 230)
-title.TextSize = 17
-title.TextStrokeTransparency = 0.8
+            ~= Enum.RejectCharacterDeletions.Disabled
 
-local toggleBtn = Instance.new("TextButton", frame)
-toggleBtn.Name = "ToggleButton"
-toggleBtn.Size = UDim2.new(1, -20, 0, 42)
-toggleBtn.Position = UDim2.new(0, 10, 0, 36)
-toggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-toggleBtn.Text = "Start"
-toggleBtn.Font = Enum.Font.GothamBold
-toggleBtn.TextSize = 15
-toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleBtn.BorderSizePixel = 0
-Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 8)
+    end
 
--- Logic
-local speed = 42
-local arrived = false
-local active = false
-local jumpLoop = nil
-local moveConn = nil
+    if rcdEnabled and replicatesignal then
 
-local function getClosestHitbox(excludeHitbox, maxDistance)
-	local closest = nil
-	local shortest = maxDistance
-	for _, base in pairs(plots:GetChildren()) do
-		if base:IsA("Model") then
-			local deliveryHitbox = base:FindFirstChild("DeliveryHitbox", true)
-			if deliveryHitbox and deliveryHitbox ~= excludeHitbox then
-				local dist = (humanoidRootPart.Position - deliveryHitbox.Position).Magnitude
-				if dist < shortest then
-					shortest = dist
-					closest = deliveryHitbox
-				end
-			end
-		end
-	end
-	return closest
+        replicatesignal(plr.ConnectDiedSignalBackend)
+
+        task.wait(Players.RespawnTime - 0.1)
+
+        replicatesignal(plr.Kill)
+
+    else
+
+        local char = plr.Character
+
+        local hum = char:FindFirstChildWhichIsA('Humanoid')
+
+        if hum then
+
+            hum:ChangeState(Enum.HumanoidStateType.Dead)
+
+        end
+
+        char:ClearAllChildren()
+
+        local newChar = Instance.new('Model')
+
+        newChar.Parent = workspace
+
+        plr.Character = newChar
+
+        task.wait()
+
+        plr.Character = char
+
+        newChar:Destroy()
+
+    end
+
 end
 
-local function findMyHitbox()
-	for _, base in pairs(plots:GetChildren()) do
-		if base:IsA("Model") then
-			for _, desc in pairs(base:GetDescendants()) do
-				if desc:IsA("TextLabel") and (string.find(desc.Text, player.Name) or string.find(desc.Text, player.DisplayName)) then
-					return base:FindFirstChild("DeliveryHitbox", true)
-				end
-			end
-		end
-	end
+for name, value in pairs(FFlags) do
+
+    pcall(function()
+
+        setfflag(tostring(name), tostring(value))
+
+    end)
+
 end
 
-local function cleanup()
-	arrived = true
-	if jumpLoop then task.cancel(jumpLoop) jumpLoop = nil end
-	if moveConn then moveConn:Disconnect() moveConn = nil end
-	if humanoidRootPart then
-		humanoidRootPart.Velocity = Vector3.zero
-	end
+respawnar(player)
+task.wait(5)
+local Players = game:GetService("Players")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+local LocalPlayer = Players.LocalPlayer
+
+local oldHub = workspace:FindFirstChild("Tokinu Hub")
+if oldHub then
+    oldHub:Destroy()
 end
 
-local function runDelivery()
-	local myHitbox = findMyHitbox()
-	if not myHitbox then warn("Tidak menemukan DeliveryHitbox sendiri.") return end
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "Tokinu Hub"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
-	local closestHitbox = getClosestHitbox(myHitbox, 50)
-	if not closestHitbox then warn("Tidak ada DeliveryHitbox lain dalam 50 studs.") return end
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 260, 0, 175)
+Frame.Position = UDim2.new(0, 40, 0, 60)
+Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+Frame.BackgroundTransparency = 0.4
+Frame.Active = true
+Frame.Draggable = true
+Frame.Parent = ScreenGui
 
-	local currentGoal = closestHitbox.Position + Vector3.new(0, 3, 0)
-	local phase = "ToClosest"
-	arrived = false
+local FrameCorner = Instance.new("UICorner")
+FrameCorner.CornerRadius = UDim.new(0, 14)
+FrameCorner.Parent = Frame
 
-	jumpLoop = task.spawn(function()
-		while active and not arrived do
-			if phase == "ToClosest" or phase == "ToMyBase" then
-				humanoidRootPart.Velocity = Vector3.new(humanoidRootPart.Velocity.X, 120, humanoidRootPart.Velocity.Z)
-				task.wait(phase == "ToClosest" and 0.5 or 1.5)
-			else
-				task.wait(0.5)
-			end
-		end
-	end)
+local Logo = Instance.new("ImageLabel")
+Logo.Size = UDim2.new(0, 38, 0, 38)
+Logo.Position = UDim2.new(0, 12, 0, 8)
+Logo.BackgroundTransparency = 1
+Logo.Image = "http://www.roblox.com/asset/?id=18347450507"
+Logo.ScaleType = Enum.ScaleType.Fit
+Logo.Parent = Frame
 
-	moveConn = RunService.Heartbeat:Connect(function()
-		if not active or arrived then return end
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -20, 0, 32)
+Title.Position = UDim2.new(0, 10, 0, 8)
+Title.BackgroundTransparency = 1
+Title.Text = "tokinu - not main instant steal"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 19
+Title.TextXAlignment = Enum.TextXAlignment.Center
+Title.Parent = Frame
 
-		if (humanoidRootPart.Position - currentGoal).Magnitude < 5 then
-			if phase == "ToClosest" then
-				phase = "ToMyBase"
-				currentGoal = myHitbox.Position + Vector3.new(0, 3, 0)
-			elseif phase == "ToMyBase" then
-				arrived = true
-				cleanup()
+local StealButton = Instance.new("TextButton")
+StealButton.Size = UDim2.new(1, -30, 0, 70)
+StealButton.Position = UDim2.new(0, 15, 0.5, -45)
+StealButton.Text = "instant stel"
+StealButton.TextColor3 = Color3.fromRGB(50, 200, 255)
+StealButton.Font = Enum.Font.FredokaOne
+StealButton.TextSize = 22
+StealButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+StealButton.BackgroundTransparency = 0.3
+StealButton.AutoButtonColor = false
+StealButton.Parent = Frame
 
-				-- Auto Stop
-				active = false
-				toggleBtn.Text = "Start"
-				toggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-			end
-			return
-		end
+local StealButtonCorner = Instance.new("UICorner")
+StealButtonCorner.CornerRadius = UDim.new(0, 12)
+StealButtonCorner.Parent = StealButton
 
-		local direction = (currentGoal - humanoidRootPart.Position).Unit
-		humanoidRootPart.Velocity = Vector3.new(direction.X * speed, humanoidRootPart.Velocity.Y, direction.Z * speed)
-	end)
-end
+local StealButtonGradient = Instance.new("UIGradient")
+StealButtonGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 40, 40)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(60, 60, 60))
+})
+StealButtonGradient.Rotation = 90
+StealButtonGradient.Parent = StealButton
 
--- Toggle tombol
-toggleBtn.MouseButton1Click:Connect(function()
-	if active then
-		active = false
-		toggleBtn.Text = "Start"
-		toggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-		cleanup()
-	else
-		if not humanoidRootPart then return warn("Karakter belum siap.") end
-		active = true
-		arrived = false
-		toggleBtn.Text = "Stop"
-		toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 100)
-		runDelivery()
-	end
-end)
+local DiscordLabel = Instance.new("TextLabel")
+DiscordLabel.Size = UDim2.new(1, -30, 0, 20)
+DiscordLabel.Position = UDim2.new(0, 15, 0, 130)
+DiscordLabel.BackgroundTransparency = 1
+DiscordLabel.Text = "discord.gg/tokinu"
+DiscordLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+DiscordLabel.Font = Enum.Font.Gotham
+DiscordLabel.TextSize = 13
+DiscordLabel.TextXAlignment = Enum.TextXAlignment.Center
+DiscordLabel.Parent = Frame
 
--- Dengarkan respawn
-Players.LocalPlayer.CharacterAdded:Connect(function(newChar)
-	character = newChar
-	humanoidRootPart = character:WaitForChild("HumanoidRootPart")
-	cleanup()
-
-	if active then
-		task.wait(1)
-		runDelivery()
-	end
+local promptConnection = ProximityPromptService.PromptButtonHoldEnded:Connect(function(value)
 end)
