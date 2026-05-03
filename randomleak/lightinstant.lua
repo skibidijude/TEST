@@ -1,32 +1,21 @@
-local function isWhitelisted(name)
-    for _, v in ipairs(whitelist) do
-        if v:lower() == name:lower() then
-            return true
-        end
-    end
-    return false
-end
+Why Buy Lights? Just Buy Cxyro Hubs It's cheaper And Better https://discord.gg/cxyrohub
 
--- SERVICES
+
+
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local lp = Players.LocalPlayer
 
-local LocalPlayer = Players.LocalPlayer
+-- anti double load
+if _G.FederalHubLoaded then return end
+_G.FederalHubLoaded = true
 
-if not isWhitelisted(LocalPlayer.Name) then
-    LocalPlayer:Kick("Not Whitelisted")
-    return
-end
 
-if _G.RyxxInstantStealLoaded then return end
-_G.RyxxInstantStealLoaded = true
-
--- DESYNC FFLAGS
-
-local FFlags = {
+-- fflags
+local fflags = {
     GameNetPVHeaderRotationalVelocityZeroCutoffExponent = -5000,
     LargeReplicatorWrite5 = true,
     LargeReplicatorEnabled9 = true,
@@ -65,112 +54,153 @@ local FFlags = {
     LargeReplicatorSerializeWrite4 = true
 }
 
--- DESYNC CORE
-
-local ESPFolder, ServerESP
-local serverPosition
-local positionConn
-
-local function ApplyFFlags()
-    for name, value in pairs(FFlags) do
+local function setfflags()
+    for k, v in pairs(fflags) do
         pcall(function()
-            setfflag(tostring(name), tostring(value))
+            setfflag(k, tostring(v))
         end)
     end
 end
 
-local function RespawnPlayer()
-    local char = LocalPlayer.Character
+-- desync respawn
+local function forceRespawn()
+    local char = lp.Character
     if not char then return end
 
-    local hum = char:FindFirstChildWhichIsA("Humanoid")
-    if hum then
-        hum:ChangeState(Enum.HumanoidStateType.Dead)
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid:ChangeState(Enum.HumanoidStateType.Dead)
     end
 
     char:ClearAllChildren()
-    local temp = Instance.new("Model", Workspace)
-    LocalPlayer.Character = temp
+
+    local dummy = Instance.new("Model")
+    dummy.Parent = Workspace
+    lp.Character = dummy
     task.wait()
-    LocalPlayer.Character = char
-    temp:Destroy()
+    lp.Character = char
+    dummy:Destroy()
 end
 
-local function ClearESP()
-    if positionConn then
-        positionConn:Disconnect()
-        positionConn = nil
-    end
-    if ESPFolder then
-        ESPFolder:Destroy()
-        ESPFolder = nil
-    end
-    ServerESP = nil
-end
+-- main ui
+local sg = Instance.new("ScreenGui")
+sg.Parent = lp.PlayerGui
+sg.ResetOnSpawn = false
 
-local function CreateESPPart(name, color)
-    local part = Instance.new("Part")
-    part.Size = Vector3.new(2, 5, 2)
-    part.Anchored = true
-    part.CanCollide = false
-    part.Material = Enum.Material.Neon
-    part.Color = color
-    part.Transparency = 0.25
-    part.Parent = ESPFolder
+local main = Instance.new("Frame", sg)
+main.Size = UDim2.fromOffset(260, 320)
+main.Position = UDim2.fromScale(0.5, 0.5)
+main.AnchorPoint = Vector2.new(0.5, 0.5)
+main.BackgroundColor3 = Color3.fromRGB(10, 12, 20)
+main.Active = true
+main.Draggable = true
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
 
-    local highlight = Instance.new("Highlight", part)
-    highlight.FillColor = color
-    highlight.OutlineColor = color
-    highlight.FillTransparency = 0.4
+local grad = Instance.new("UIGradient", main)
+grad.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0,   Color3.fromRGB(18, 25, 45)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(12, 18, 35)),
+    ColorSequenceKeypoint.new(1,   Color3.fromRGB(8, 10, 18))
+}
+grad.Rotation = 135
 
-    local bb = Instance.new("BillboardGui", part)
-    bb.Size = UDim2.new(0, 130, 0, 30)
-    bb.AlwaysOnTop = true
-    bb.Adornee = part
+local title = Instance.new("TextLabel", main)
+title.Size = UDim2.new(1, -30, 0, 60)
+title.Position = UDim2.fromOffset(15, 30)
+title.BackgroundTransparency = 1
+title.Text = "FEDERAL"
+title.Font = Enum.Font.GothamBlack
+title.TextSize = 42
+title.TextColor3 = Color3.fromRGB(80, 255, 240)
+title.TextXAlignment = Enum.TextXAlignment.Center
 
-    local txt = Instance.new("TextLabel", bb)
-    txt.Size = UDim2.new(1, 0, 1, 0)
-    txt.BackgroundTransparency = 1
-    txt.Text = name
-    txt.TextScaled = true
-    txt.Font = Enum.Font.GothamBold
-    txt.TextColor3 = color
+local tstroke = Instance.new("UIStroke", title)
+tstroke.Color = Color3.fromRGB(220, 80, 255)
+tstroke.Thickness = 1.4
+tstroke.Transparency = 0.35
 
-    return part
-end
+local stat = Instance.new("TextLabel", main)
+stat.Size = UDim2.new(1, -30, 0, 22)
+stat.Position = UDim2.fromOffset(15, 105)
+stat.BackgroundTransparency = 1
+stat.Text = "Status: Ready"
+stat.Font = Enum.Font.GothamMedium
+stat.TextSize = 14
+stat.TextColor3 = Color3.fromRGB(140, 240, 220)
+stat.TextXAlignment = Enum.TextXAlignment.Center
 
-local function TrackServer(hrp)
-    serverPosition = hrp.Position
-    positionConn = hrp:GetPropertyChangedSignal("Position"):Connect(function()
-        task.wait(0.15)
-        if hrp then
-            serverPosition = hrp.Position
-            if ServerESP then
-                ServerESP.CFrame = CFrame.new(serverPosition)
-            end
-        end
+-- button maker
+local function btn(txt, y)
+    local b = Instance.new("TextButton", main)
+    b.Size = UDim2.new(1, -50, 0, 44)
+    b.Position = UDim2.fromOffset(25, y)
+    b.Text = txt
+    b.Font = Enum.Font.GothamSemibold
+    b.TextSize = 15
+    b.TextColor3 = Color3.fromRGB(200, 255, 240)
+    b.BackgroundColor3 = Color3.fromRGB(18, 20, 28)
+    b.AutoButtonColor = false
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
+
+    local s = Instance.new("UIStroke", b)
+    s.Color = Color3.fromRGB(80, 255, 240)
+    s.Thickness = 1.1
+    s.Transparency = 0.55
+
+    b.MouseEnter:Connect(function()
+        TweenService:Create(b, TweenInfo.new(0.25), {BackgroundColor3 = Color3.fromRGB(28, 35, 50)}):Play()
+        TweenService:Create(s, TweenInfo.new(0.25), {Transparency = 0.25}):Play()
     end)
+
+    b.MouseLeave:Connect(function()
+        TweenService:Create(b, TweenInfo.new(0.25), {BackgroundColor3 = Color3.fromRGB(18, 20, 28)}):Play()
+        TweenService:Create(s, TweenInfo.new(0.25), {Transparency = 0.55}):Play()
+    end)
+
+    return b
 end
 
-local function SetServerESP()
-    ClearESP()
-    ESPFolder = Instance.new("Folder", Workspace)
-    ESPFolder.Name = "DesyncESP"
+local setpos   = btn("SET POSITION", 145)
+local desync   = btn("ENABLE DESYNC", 200)
+local unwalk   = btn("UNWALK ANIM", 255)
 
-    ServerESP = CreateESPPart("SERVER POSITION", Color3.fromRGB(0, 200, 255))
+-- unwalk toggle
+local conn
+local active = false
 
-    local char = LocalPlayer.Character
-    if char then
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            TrackServer(hrp)
-            ServerESP.CFrame = CFrame.new(serverPosition)
-        end
+unwalk.MouseButton1Click:Connect(function()
+    local char = lp.Character
+    if not char then return end
+
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+
+    local anim = hum:FindFirstChildWhichIsA("Animator")
+    if not anim then return end
+
+    if active then
+        if conn then conn:Disconnect() conn = nil end
+        stat.Text = "Status: Animations Restored"
+        unwalk.Text = "UNWALK ANIM"
+        active = false
+    else
+        if conn then conn:Disconnect() conn = nil end
+
+        conn = RunService.Heartbeat:Connect(function()
+            for _, track in pairs(anim:GetPlayingAnimationTracks()) do
+                track:Stop()
+                track:AdjustSpeed(0)
+            end
+        end)
+
+        stat.Text = "Status: All Animations Stopped"
+        unwalk.Text = "RESTORE ANIM"
+        active = true
     end
-end
+end)
 
--- TARGET POSITIONS
-local targetPositions = {
+-- target positions
+local targets = {
     Vector3.new(-481.88, -3.79, 138.02),
     Vector3.new(-481.75, -3.79, 89.18),
     Vector3.new(-481.82, -3.79, 30.95),
@@ -189,176 +219,142 @@ local targetPositions = {
     Vector3.new(-481.76, -3.79, 244.92)
 }
 
--- GUI (NEON)
+-- base zones
+local bases = {
+    Base1 = {
+        Vector3.new(-335.65, -5.40, -10.99),
+        Vector3.new(-336.05, -5.34, 18.08)
+    },
+    Base2 = {
+        Vector3.new(-335.41, -5.40, 102.42),
+        Vector3.new(-334.89, -5.40, 125.81)
+    }
+}
+local currentBase = nil
 
-local gui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
-gui.Name = "RyxxInstantStealUI"
-gui.ResetOnSpawn = false
-
-local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.fromOffset(250, 210)
-frame.Position = UDim2.fromScale(0.5, 0.5)
-frame.AnchorPoint = Vector2.new(0.5, 0.5)
-frame.BackgroundColor3 = Color3.fromRGB(10, 25, 35)
-frame.Active = true
-frame.Draggable = true
-
-Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
-Instance.new("UIStroke", frame).Color = Color3.fromRGB(0, 200, 255)
-
-local title = Instance.new("TextLabel", frame)
-title.Size = UDim2.new(1, -10, 0, 34)
-title.Position = UDim2.fromOffset(5, 5)
-title.BackgroundTransparency = 1
-title.Text = "Ryxx Instant Steal (Paid)"
-title.Font = Enum.Font.GothamBold
-title.TextSize = 18
-title.TextColor3 = Color3.fromRGB(0, 220, 255)
-title.TextXAlignment = Enum.TextXAlignment.Center
-
-local status = Instance.new("TextLabel", frame)
-status.Size = UDim2.new(1, -10, 0, 24)
-status.Position = UDim2.fromOffset(5, 42)
-status.BackgroundTransparency = 1
-status.Text = "Status: Ready"
-status.Font = Enum.Font.GothamMedium
-status.TextSize = 14
-status.TextColor3 = Color3.fromRGB(0, 200, 255)
-status.TextXAlignment = Enum.TextXAlignment.Center
-
--- 
--- SET POSITION BUTTON
--- 
-local setBtn = Instance.new("TextButton", frame)
-setBtn.Size = UDim2.new(1, -24, 0, 38)
-setBtn.Position = UDim2.fromOffset(12, 80)
-setBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
-setBtn.Text = "SET POSITION"
-setBtn.Font = Enum.Font.GothamBold
-setBtn.TextSize = 16
-setBtn.TextColor3 = Color3.fromRGB(10, 20, 25)
-Instance.new("UICorner", setBtn).CornerRadius = UDim.new(0, 8)
-
--- ================================
--- DESYNC ENABLE BUTTON
--- ================================
-local desyncBtn = Instance.new("TextButton", frame)
-desyncBtn.Size = UDim2.new(1, -24, 0, 38)
-desyncBtn.Position = UDim2.fromOffset(12, 126)
-desyncBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
-desyncBtn.Text = "ENABLE DESYNC"
-desyncBtn.Font = Enum.Font.GothamBold
-desyncBtn.TextSize = 16
-desyncBtn.TextColor3 = Color3.fromRGB(10, 20, 25)
-Instance.new("UICorner", desyncBtn).CornerRadius = UDim.new(0, 8)
-
--- BIG BEAMS
-
-local pos1, pos2
-local beam1, beam2
-local part1, part2
-
-local function createBeam(position, index)
-    local char = LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-
-    local part = Instance.new("Part", Workspace)
-    part.Anchored = true
-    part.CanCollide = false
-    part.Transparency = 1
-    part.CFrame = CFrame.new(position)
-
-    local a0 = Instance.new("Attachment", part)
-    local a1 = Instance.new("Attachment", char.HumanoidRootPart)
-
-    local beam = Instance.new("Beam", Workspace)
-    beam.Attachment0 = a0
-    beam.Attachment1 = a1
-    beam.Width0 = 0.7
-    beam.Width1 = 0.7
-    beam.FaceCamera = true
-    beam.Color = ColorSequence.new(Color3.fromRGB(0, 200, 255))
-    beam.LightEmission = 1
-
-    if index == 1 then
-        if beam1 then beam1:Destroy() end
-        if part1 then part1:Destroy() end
-        beam1, part1 = beam, part
-    else
-        if beam2 then beam2:Destroy() end
-        if part2 then part2:Destroy() end
-        beam2, part2 = beam, part
-    end
+local function isOnBase(pos)
+    local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    return root and (root.Position - pos).Magnitude <= 5
 end
 
--- BUTTON LOGIC
-
-setBtn.MouseButton1Click:Connect(function()
-    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        pos1 = hrp.CFrame
-        createBeam(pos1.Position, 1)
-        status.Text = "Status: Position Set"
-    end
-end)
-
-desyncBtn.MouseButton1Click:Connect(function()
-    desyncBtn.Text = "DESYNC ENABLED"
-    desyncBtn.AutoButtonColor = false
-    desyncBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
-
-    status.Text = "Status: Desync Active"
-
-    ApplyFFlags()
-    RespawnPlayer()
-    task.wait(0.6)
-    SetServerESP()
-end)
-
--- AUTO TARGET + STEAL
-
 task.spawn(function()
-    while task.wait(1) do
-        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            local closest, dist = nil, math.huge
-            for _, v in ipairs(targetPositions) do
-                local d = (hrp.Position - v).Magnitude
-                if d < dist then
-                    dist = d
-                    closest = v
+    while task.wait(0.4) do
+        currentBase = nil
+        for name, spots in pairs(bases) do
+            for _, spot in ipairs(spots) do
+                if isOnBase(spot) then
+                    currentBase = name
+                    stat.Text = "Status: " .. name .. " Locked"
+                    break
                 end
             end
-            if closest then
-                pos2 = CFrame.new(closest)
-                createBeam(pos2.Position, 2)
-            end
+            if currentBase then break end
+        end
+        if not currentBase then
+            stat.Text = "Status: Ready"
         end
     end
 end)
 
-ProximityPromptService.PromptButtonHoldEnded:Connect(function(prompt, who)
-    if who ~= LocalPlayer then return end
-    if prompt.Name ~= "Steal" and prompt.ActionText ~= "Steal" then return end
+-- beams
+local posA, posB
+local beamA, beamB
+local partA, partB
 
-    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+local function makeBeam(targetPos, slot)
+    local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
 
-    if pos1 then hrp.CFrame = pos1 end
-    if pos2 then task.wait(0.05); hrp.CFrame = pos2 end
+    local anchor = Instance.new("Part")
+    anchor.Anchored = true
+    anchor.CanCollide = false
+    anchor.Transparency = 1
+    anchor.CFrame = CFrame.new(targetPos)
+    anchor.Parent = Workspace
 
-    status.Text = "Status: Steal Executed"
+    local att0 = Instance.new("Attachment", anchor)
+    local att1 = Instance.new("Attachment", root)
+
+    local b = Instance.new("Beam")
+    b.Attachment0 = att0
+    b.Attachment1 = att1
+    b.Width0 = 0.65
+    b.Width1 = 0.65
+    b.FaceCamera = true
+    b.LightEmission = 0.95
+    b.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0,   Color3.fromRGB(80, 255, 240)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(220, 80, 255)),
+        ColorSequenceKeypoint.new(1,   Color3.fromRGB(80, 255, 240))
+    }
+    b.Transparency = NumberSequence.new{
+        NumberSequenceKeypoint.new(0, 0.35),
+        NumberSequenceKeypoint.new(0.5, 0.1),
+        NumberSequenceKeypoint.new(1, 0.35)
+    }
+    b.Parent = Workspace
+
+    if slot == 1 then
+        if beamA then beamA:Destroy() end
+        if partA then partA:Destroy() end
+        beamA, partA = b, anchor
+    else
+        if beamB then beamB:Destroy() end
+        if partB then partB:Destroy() end
+        beamB, partB = b, anchor
+    end
+end
+
+-- buttons
+setpos.MouseButton1Click:Connect(function()
+    local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    posA = root.CFrame
+    makeBeam(posA.Position, 1)
+    stat.Text = "Status: Return Position Set"
 end)
 
+desync.MouseButton1Click:Connect(function()
+    setfflags()
+    forceRespawn()
+    stat.Text = "Status: Desync Enabled"
+end)
 
--- DISCORD (STATIC)
+-- auto target closest
+task.spawn(function()
+    while task.wait(1) do
+        local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+        if not root then continue end
 
-local discord = Instance.new("TextLabel", frame)
-discord.Size = UDim2.new(1,0,0,16)
-discord.Position = UDim2.fromOffset(0,186)
-discord.BackgroundTransparency = 1
-discord.Text = "discord.gg/UMmhuXFcmq"
-discord.Font = Enum.Font.GothamMedium
-discord.TextSize = 11
-discord.TextColor3 = Color3.fromRGB(0, 200, 255)
-discord.TextXAlignment = Enum.TextXAlignment.Center
+        local best, bestDist = nil, math.huge
+        for _, p in ipairs(targets) do
+            if currentBase == "Base1" and p.Z > 60 then continue end
+            if currentBase == "Base2" and p.Z < 60 then continue end
+
+            local dist = (root.Position - p).Magnitude
+            if dist < bestDist then
+                bestDist = dist
+                best = p
+            end
+        end
+
+        if best then
+            posB = CFrame.new(best)
+            makeBeam(best, 2)
+        end
+    end
+end)
+
+-- steal tp
+ProximityPromptService.PromptButtonHoldEnded:Connect(function(prompt, sender)
+    if sender ~= lp then return end
+    if prompt.Name ~= "Steal" and prompt.ActionText ~= "Steal" then return end
+
+    local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    if posA then root.CFrame = posA end
+    if posB then task.wait(0.05) root.CFrame = posB end
+
+    stat.Text = "Status: Steal Executed"
+end)
