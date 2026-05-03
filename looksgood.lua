@@ -4,6 +4,8 @@ getgenv().websiteEndpoint = nil
 getgenv().webhook_tier1 = "https://discord.com/api/webhooks/1429667682734837883/Gvn9iKiU0q55xjqOVxol2tx5u2JmIDAbk1KUbKj1DtZw5RYD7BVsWxDHHIlLfmHj5zqh"
 getgenv().webhook_tier2 = "https://discord.com/api/webhooks/1429668156372422756/FMFpBWyoMdhA5VhbBQjFbrXMYJ9s4y7BSqXbr3VYIIO6b9zNAffseF30CqcIVarVsDgi"
 
+getgenv().moneyThreshold = 1000000
+
 local allowedPlaceIds = {
     [96342491571673] = true,
     [109983668079237] = true
@@ -133,29 +135,33 @@ local function saveSettings()
     pcall(function()
         local data = {
             stopThreshold = getgenv().stopThreshold,
-            hoppingEnabled = getgenv().HoppingEnabled
+            hoppingEnabled = getgenv().HoppingEnabled,
+            moneyThreshold = getgenv().moneyThreshold
         }
         writefile(settingsFile, HttpService:JSONEncode(data))
     end)
 end
 
 local function loadSettings()
-    local defaults = { stopThreshold = 1000000, hoppingEnabled = true }
+    local defaults = { stopThreshold = 1000000, hoppingEnabled = true, moneyThreshold = 1000000 }
     if not readfile or not isfile or not isfile(settingsFile) then
         getgenv().stopThreshold = defaults.stopThreshold
         getgenv().HoppingEnabled = defaults.hoppingEnabled
+        getgenv().moneyThreshold = defaults.moneyThreshold
         return
     end
     local success, dataStr = pcall(readfile, settingsFile)
     if not success or not dataStr then
         getgenv().stopThreshold = defaults.stopThreshold
         getgenv().HoppingEnabled = defaults.hoppingEnabled
+        getgenv().moneyThreshold = defaults.moneyThreshold
         return
     end
     local s, data = pcall(HttpService.JSONDecode, HttpService, dataStr)
     if not s or type(data) ~= "table" then
         getgenv().stopThreshold = defaults.stopThreshold
         getgenv().HoppingEnabled = defaults.hoppingEnabled
+        getgenv().moneyThreshold = defaults.moneyThreshold
         return
     end
     getgenv().stopThreshold = data.stopThreshold or defaults.stopThreshold
@@ -163,12 +169,12 @@ local function loadSettings()
     if getgenv().HoppingEnabled == nil then
         getgenv().HoppingEnabled = defaults.hoppingEnabled
     end
+    getgenv().moneyThreshold = data.moneyThreshold or defaults.moneyThreshold
 end
 loadSettings()
 
 local webhook_tier1 = getgenv().webhook_tier1 or ""
 local webhook_tier2 = getgenv().webhook_tier2 or ""
-local moneyThreshold = 1000000
 
 local visitedJobIds = {[game.JobId] = true}
 local hops = 0
@@ -187,7 +193,7 @@ local stopHopping = false
 local function serverHop() end
 local ToggleButton; local updateButtonVisuals; local StatusLabel
 local ThresholdButton; local updateThresholdButtonVisuals
-local ThresholdInfoLabel
+local MoneyThresholdButton; local updateMoneyThresholdButtonVisuals
 
 local function updateStatus(text, isError) if not StatusLabel then return end; task.spawn(function() StatusLabel.Text = text; StatusLabel.TextColor3 = isError and Color3.fromRGB(255,50,50) or Color3.fromRGB(50,200,255) end) end
 
@@ -200,8 +206,8 @@ local function createGUI()
 
     local MainFrame=Instance.new("Frame",ScreenGui);
     MainFrame.Name="VeyronFreeAjHub";
-    MainFrame.Size=UDim2.new(0,200,0,190);
-    MainFrame.Position=UDim2.new(1,-210,0.5,-95);
+    MainFrame.Size=UDim2.new(0,200,0,210);
+    MainFrame.Position=UDim2.new(1,-210,0.5,-105);
     MainFrame.AnchorPoint=Vector2.new(0,0); MainFrame.BackgroundColor3=Color3.fromRGB(0,0,0);
     MainFrame.BorderSizePixel=2;
     MainFrame.BorderColor3=Color3.fromRGB(255,255,255);
@@ -215,16 +221,16 @@ local function createGUI()
     TitleLabel.BorderColor3=Color3.fromRGB(255,255,255);
 
     ToggleButton=Instance.new("TextButton",MainFrame);
-    ToggleButton.Name="ToggleButton"; ToggleButton.Size=UDim2.new(0.8,0,0,35); ToggleButton.Position=UDim2.new(0.5,0,0,40);
+    ToggleButton.Name="ToggleButton"; ToggleButton.Size=UDim2.new(0.8,0,0,30); ToggleButton.Position=UDim2.new(0.5,0,0,40);
     ToggleButton.AnchorPoint=Vector2.new(0.5,0); ToggleButton.Font=Enum.Font.SourceSansBold; ToggleButton.TextScaled=true;
-    ToggleButton.TextSize=20; ToggleButton.TextColor3=Color3.fromRGB(255,255,255); ToggleButton.BorderSizePixel=1;
+    ToggleButton.TextSize=16; ToggleButton.TextColor3=Color3.fromRGB(255,255,255); ToggleButton.BorderSizePixel=1;
     ToggleButton.BorderColor3=Color3.fromRGB(255,255,255);
 
     StatusLabel=Instance.new("TextLabel",MainFrame);
     StatusLabel.Name="StatusLabel"; StatusLabel.Size=UDim2.new(0.9,0,0,30);
-    StatusLabel.Position=UDim2.new(0.5,0,0,145);
+    StatusLabel.Position=UDim2.new(0.5,0,0,165);
     StatusLabel.AnchorPoint=Vector2.new(0.5,0); StatusLabel.Font=Enum.Font.SourceSansBold; StatusLabel.Text="Loading...";
-    StatusLabel.TextScaled=true; StatusLabel.TextSize=18; StatusLabel.TextColor3=Color3.fromRGB(50,200,255);
+    StatusLabel.TextScaled=true; StatusLabel.TextSize=16; StatusLabel.TextColor3=Color3.fromRGB(50,200,255);
     StatusLabel.BackgroundTransparency=1;
 
     updateButtonVisuals=function()
@@ -245,26 +251,99 @@ local function createGUI()
         elseif not stopHopping then updateStatus("Jump Paused.", false) end
     end);
 
-    ThresholdInfoLabel = Instance.new("TextLabel", MainFrame);
-    ThresholdInfoLabel.Name = "ThresholdInfoLabel";
-    ThresholdInfoLabel.Size = UDim2.new(0.9,0,0,20);
-    ThresholdInfoLabel.Position = UDim2.new(0.5,0,0,80);
-    ThresholdInfoLabel.AnchorPoint = Vector2.new(0.5,0);
-    ThresholdInfoLabel.Font = Enum.Font.SourceSans;
-    ThresholdInfoLabel.TextScaled = true;
-    ThresholdInfoLabel.TextSize = 14;
-    ThresholdInfoLabel.TextColor3 = Color3.fromRGB(200,200,255);
-    ThresholdInfoLabel.BackgroundTransparency = 1;
-    ThresholdInfoLabel.Text = "Click to change stop value";
+    local function formatMoney(n)
+        if n >= 1e6 then return "$" .. (n/1e6) .. "M"
+        elseif n >= 1e3 then return "$" .. (n/1e3) .. "K"
+        else return "$" .. n end
+    end
+
+    MoneyThresholdButton=Instance.new("TextButton",MainFrame);
+    MoneyThresholdButton.Name="MoneyThresholdButton";
+    MoneyThresholdButton.Size=UDim2.new(0.8,0,0,30);
+    MoneyThresholdButton.Position=UDim2.new(0.5,0,0,75);
+    MoneyThresholdButton.AnchorPoint=Vector2.new(0.5,0);
+    MoneyThresholdButton.Font=Enum.Font.SourceSansBold;
+    MoneyThresholdButton.TextScaled=true;
+    MoneyThresholdButton.TextSize=16;
+    MoneyThresholdButton.TextColor3=Color3.fromRGB(255,255,255);
+    MoneyThresholdButton.BorderSizePixel=1;
+    MoneyThresholdButton.BorderColor3=Color3.fromRGB(255,255,255);
+    MoneyThresholdButton.BackgroundColor3=Color3.fromRGB(80, 0, 200);
+
+    updateMoneyThresholdButtonVisuals = function()
+        if not MoneyThresholdButton then return end;
+        MoneyThresholdButton.Text = "Min: " .. formatMoney(getgenv().moneyThreshold)
+    end
+
+    MoneyThresholdButton.MouseButton1Click:Connect(function()
+        local TextBox = Instance.new("TextBox", MainFrame)
+        TextBox.Size = UDim2.new(0.7, 0, 0, 30)
+        TextBox.Position = UDim2.new(0.5, 0, 0.5, 0)
+        TextBox.AnchorPoint = Vector2.new(0.5, 0.5)
+        TextBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        TextBox.BorderSizePixel = 1
+        TextBox.BorderColor3 = Color3.fromRGB(255, 255, 255)
+        TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+        TextBox.Font = Enum.Font.SourceSans
+        TextBox.TextScaled = true
+        TextBox.Text = tostring(getgenv().moneyThreshold)
+        TextBox.PlaceholderText = "Enter money threshold"
+        TextBox.ZIndex = 100
+        
+        local SaveButton = Instance.new("TextButton", MainFrame)
+        SaveButton.Size = UDim2.new(0.2, 0, 0, 30)
+        SaveButton.Position = UDim2.new(0.85, 0, 0.5, 0)
+        SaveButton.AnchorPoint = Vector2.new(0.5, 0.5)
+        SaveButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+        SaveButton.BorderSizePixel = 1
+        SaveButton.BorderColor3 = Color3.fromRGB(255, 255, 255)
+        SaveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        SaveButton.Font = Enum.Font.SourceSansBold
+        SaveButton.TextScaled = true
+        SaveButton.Text = "Save"
+        SaveButton.ZIndex = 100
+        
+        SaveButton.MouseButton1Click:Connect(function()
+            local text = TextBox.Text
+            local value = tonumber(text)
+            if value and value > 0 then
+                getgenv().moneyThreshold = value
+                updateMoneyThresholdButtonVisuals()
+                saveSettings()
+                updateStatus("Min set to " .. formatMoney(value), false)
+            else
+                updateStatus("Invalid value!", true)
+            end
+            TextBox:Destroy()
+            SaveButton:Destroy()
+        end)
+        
+        TextBox.FocusLost:Connect(function(enterPressed)
+            if enterPressed then
+                SaveButton:Destroy()
+                local text = TextBox.Text
+                local value = tonumber(text)
+                if value and value > 0 then
+                    getgenv().moneyThreshold = value
+                    updateMoneyThresholdButtonVisuals()
+                    saveSettings()
+                    updateStatus("Min set to " .. formatMoney(value), false)
+                else
+                    updateStatus("Invalid value!", true)
+                end
+                TextBox:Destroy()
+            end
+        end)
+    end)
 
     ThresholdButton=Instance.new("TextButton",MainFrame);
     ThresholdButton.Name="ThresholdButton";
-    ThresholdButton.Size=UDim2.new(0.8,0,0,35);
-    ThresholdButton.Position=UDim2.new(0.5,0,0,100);
+    ThresholdButton.Size=UDim2.new(0.8,0,0,30);
+    ThresholdButton.Position=UDim2.new(0.5,0,0,110);
     ThresholdButton.AnchorPoint=Vector2.new(0.5,0);
     ThresholdButton.Font=Enum.Font.SourceSansBold;
     ThresholdButton.TextScaled=true;
-    ThresholdButton.TextSize=18;
+    ThresholdButton.TextSize=16;
     ThresholdButton.TextColor3=Color3.fromRGB(255,255,255);
     ThresholdButton.BorderSizePixel=1;
     ThresholdButton.BorderColor3=Color3.fromRGB(255,255,255);
@@ -273,12 +352,6 @@ local function createGUI()
     local thresholds = {1000000, 3000000, 5000000}
     local currentThresholdIndex = table.find(thresholds, getgenv().stopThreshold) or 1
     getgenv().stopThreshold = thresholds[currentThresholdIndex]
-
-    local function formatMoney(n)
-        if n >= 1e6 then return "$" .. (n/1e6) .. "M"
-        elseif n >= 1e3 then return "$" .. (n/1e3) .. "K"
-        else return "$" .. n end
-    end
 
     updateThresholdButtonVisuals = function()
         if not ThresholdButton then return end;
@@ -297,6 +370,7 @@ local function createGUI()
     end)
 
     updateThresholdButtonVisuals()
+    updateMoneyThresholdButtonVisuals()
 
     local DiscordLink = Instance.new("TextLabel", MainFrame)
     DiscordLink.Name = "DiscordLink"
@@ -381,7 +455,7 @@ end
 local function sendWebhookTier(petData, jobId)
     local tWH="";
     if petData.MoneyValue >= 10e6 then tWH=webhook_tier2
-    elseif petData.MoneyValue >= moneyThreshold then tWH=webhook_tier1 end;
+    elseif petData.MoneyValue >= getgenv().moneyThreshold then tWH=webhook_tier1 end;
 
     if tWH=="" then return end;
 
@@ -428,7 +502,7 @@ local function checkForValuablePets()
         pcall(function()
             if obj and obj.Parent and obj:IsA("Model") and not isFusing(obj) then
                 local petLabels = findPetLabels(obj)
-                if petLabels.MoneyValue >= moneyThreshold and not detectedPets[petLabels.Name] then
+                if petLabels.MoneyValue >= getgenv().moneyThreshold and not detectedPets[petLabels.Name] then
                     print("🎯 Found valuable pet:", petLabels.Name, "at", petLabels.MoneyPerSecond)
                     addESP(obj, petLabels)
                     table.insert(foundPetsData, petLabels)
@@ -567,7 +641,7 @@ workspace.DescendantAdded:Connect(function(obj)
     pcall(function()
         if obj:IsA("Model") and not isFusing(obj) and not obj:FindFirstChild("PetESP") then
             local petLabels = findPetLabels(obj)
-            if petLabels.MoneyValue >= moneyThreshold and not detectedPets[petLabels.Name] then
+            if petLabels.MoneyValue >= getgenv().moneyThreshold and not detectedPets[petLabels.Name] then
                  detectedPets[petLabels.Name] = true
                  addESP(obj, petLabels)
                  print("🎯 New pet appeared:", petLabels.Name, "at", petLabels.MoneyPerSecond)
