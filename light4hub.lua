@@ -227,7 +227,7 @@ local tbFill=mkFrame({Size=UDim2.new(1,0,0,14),Position=UDim2.new(0,0,1,-14),Bac
 local tbFillGrad=Instance.new("UIGradient",tbFill)
 tbFillGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(210,60,120)),ColorSequenceKeypoint.new(0.5,Color3.fromRGB(255,120,180)),ColorSequenceKeypoint.new(1,Color3.fromRGB(210,60,120))})
 tbFillGrad.Rotation=0
-local titleLabel=mkLabel({Size=UDim2.new(1,0,1,0),Position=UDim2.new(0,0,0,0),Text="SAKURA HUB INSTA STEAL",TextColor3=WHITE,TextSize=22,Font=Enum.Font.GothamBlack,TextXAlignment=Enum.TextXAlignment.Center,Parent=titleBar})
+local titleLabel=mkLabel({Size=UDim2.new(1,0,1,0),Position=UDim2.new(0,0,0,0),Text="LIGHT HUB INSTA STEAL",TextColor3=WHITE,TextSize=22,Font=Enum.Font.GothamBlack,TextXAlignment=Enum.TextXAlignment.Center,Parent=titleBar})
 local titleGrad=Instance.new("UIGradient",titleBar)
 titleGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(210,60,120)),ColorSequenceKeypoint.new(0.5,Color3.fromRGB(255,130,185)),ColorSequenceKeypoint.new(1,Color3.fromRGB(210,60,120))})
 titleGrad.Rotation=0
@@ -565,13 +565,6 @@ for i = 1, #hubWord do
 	flickerIn(hubLabel, 5, 0.04)
 	task.wait(0.18)
 end
-
--- Both fully spelled — pause so player reads it
-task.wait(0.4)
-
--- =====================
--- PHASE 2: INTENSE STROBE, RAMPING FASTER (2 seconds)
--- =====================
 
 local fastFlashActive = true
 local flashSpeed = 0.12
